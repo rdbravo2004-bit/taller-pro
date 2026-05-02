@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taller Pro — Clientes</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/app.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h2>👥 Clientes</h2>
+        <button class="btn btn-primary" onclick="openClientModal()">+ Nuevo Cliente</button>
+      </div>
+
+      <!-- Filtros -->
+      <div class="filters-bar">
+        <input type="text" id="filter-search" placeholder="Buscar por nombre, teléfono o email..." oninput="loadClients()">
+      </div>
+
+      <!-- Tabla -->
+      <div class="card">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th>Teléfono</th>
+                <th>Email</th>
+                <th>Vehículos</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="clients-table"></tbody>
+          </table>
+        </div>
+        <div class="loading-overlay" id="clients-loading">
+          <div class="spinner"></div> Cargando...
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal Cliente -->
+  <div class="modal-overlay" id="client-modal">
+    <div class="modal">
+      <h3 id="modal-title">Nuevo Cliente</h3>
+      <form id="client-form" onsubmit="saveClient(event)">
+        <input type="hidden" id="client-id">
+        <div class="form-group">
+          <label for="client-name">Nombre completo *</label>
+          <input type="text" id="client-name" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="client-phone">Teléfono *</label>
+            <input type="tel" id="client-phone" required>
+          </div>
+          <div class="form-group">
+            <label for="client-email">Email</label>
+            <input type="email" id="client-email">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeModal('client-modal')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Vehículo -->
+  <div class="modal-overlay" id="vehicle-modal">
+    <div class="modal">
+      <h3>Vehículos del Cliente</h3>
+      <div id="vehicle-client-name" style="margin-bottom:1rem;color:var(--text-muted)"></div>
+      <div class="table-container" style="margin-bottom:1rem">
+        <table>
+          <thead>
+            <tr><th>Marca</th><th>Modelo</th><th>Año</th><th>Patente</th><th></th></tr>
+          </thead>
+          <tbody id="vehicles-table"></tbody>
+        </table>
+      </div>
+      <form id="vehicle-form" onsubmit="addVehicle(event)" style="margin-bottom:1rem">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Marca *</label>
+            <input type="text" id="v-brand" required>
+          </div>
+          <div class="form-group">
+            <label>Modelo *</label>
+            <input type="text" id="v-model" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Año</label>
+            <input type="number" id="v-year" min="1950" max="2030">
+          </div>
+          <div class="form-group">
+            <label>Patente</label>
+            <input type="text" id="v-plate">
+          </div>
+        </div>
+        <input type="hidden" id="v-client-id">
+        <button type="submit" class="btn btn-primary btn-sm">Agregar Vehículo</button>
+      </form>
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeModal('vehicle-modal')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const session = await requireAuth();
+      if (!session) return;
+      loadClients();
+    });
+
+    async function loadClients() {
+      const search = document.getElementById('filter-search').value.trim().toLowerCase();
+      const loading = document.getElementById('clients-loading');
+      loading.style.display = 'flex';
+
+      let query = db.from('clients').select('*').order('created_at', { ascending: false });
+
+      if (search) {
+        query = query.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%,email.ilike.%${search}%`);
+      }
+
+      const { data, error } = await query;
+
+      loading.style.display = 'none';
+
+      const tbody = document.getElementById('clients-table');
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--danger)">Error: ${error.message}</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = data.map(c => `
+        <tr>
+          <td><strong>${escapeHTML(c.full_name)}</strong></td>
+          <td>${escapeHTML(c.phone)}</td>
+          <td>${escapeHTML(c.email || '—')}</td>
+          <td><button class="btn btn-sm btn-primary" onclick="openVehicleModal('${c.id}', '${escapeHTML(c.full_name)}')">Ver vehículos</button></td>
+          <td>
+            <button class="btn btn-sm" onclick="editClient('${c.id}')">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteClient('${c.id}', '${escapeHTML(c.full_name)}')">🗑</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function openClientModal(client = null) {
+      document.getElementById('modal-title').textContent = client ? 'Editar Cliente' : 'Nuevo Cliente';
+      document.getElementById('client-id').value = client?.id || '';
+      document.getElementById('client-name').value = client?.full_name || '';
+      document.getElementById('client-phone').value = client?.phone || '';
+      document.getElementById('client-email').value = client?.email || '';
+      document.getElementById('client-modal').classList.add('active');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    async function saveClient(event) {
+      event.preventDefault();
+      const id = document.getElementById('client-id').value;
+      const payload = {
+        full_name: document.getElementById('client-name').value,
+        phone: document.getElementById('client-phone').value,
+        email: document.getElementById('client-email').value || null,
+      };
+
+      let error;
+      if (id) {
+        ({ error } = await db.from('clients').update(payload).eq('id', id));
+      } else {
+        ({ error } = await db.from('clients').insert(payload));
+      }
+
+      if (error) {
+        toast(error.message, 'error');
+      } else {
+        toast(id ? 'Cliente actualizado' : 'Cliente creado');
+        closeModal('client-modal');
+        loadClients();
+      }
+    }
+
+    function editClient(id) {
+      db.from('clients').select('*').eq('id', id).single().then(({ data }) => {
+        if (data) openClientModal(data);
+      });
+    }
+
+    async function deleteClient(id, name) {
+      if (!confirm(`¿Eliminar a ${name}? También se eliminarán sus vehículos.`)) return;
+      const { error } = await db.from('clients').delete().eq('id', id);
+      if (error) { toast(error.message, 'error'); return; }
+      toast('Cliente eliminado');
+      loadClients();
+    }
+
+    // Vehículos
+    function openVehicleModal(clientId, clientName) {
+      document.getElementById('v-client-id').value = clientId;
+      document.getElementById('vehicle-client-name').textContent = clientName;
+      document.getElementById('vehicle-modal').classList.add('active');
+      loadVehicles(clientId);
+    }
+
+    async function loadVehicles(clientId) {
+      const { data } = await db.from('vehicles').select('*').eq('client_id', clientId).order('created_at', { ascending: false });
+      document.getElementById('vehicles-table').innerHTML = (data || []).map(v => `
+        <tr>
+          <td>${escapeHTML(v.brand)}</td>
+          <td>${escapeHTML(v.model)}</td>
+          <td>${v.year || '—'}</td>
+          <td>${escapeHTML(v.license_plate || '—')}</td>
+          <td><button class="btn btn-sm btn-danger" onclick="deleteVehicle('${v.id}', '${escapeHTML(v.brand + ' ' + v.model)}', '${clientId}')">🗑</button></td>
+        </tr>
+      `).join('');
+    }
+
+    async function addVehicle(event) {
+      event.preventDefault();
+      const clientId = document.getElementById('v-client-id').value;
+      const { error } = await db.from('vehicles').insert({
+        client_id: clientId,
+        brand: document.getElementById('v-brand').value,
+        model: document.getElementById('v-model').value,
+        year: document.getElementById('v-year').value || null,
+        license_plate: document.getElementById('v-plate').value || null,
+      });
+      if (error) { toast(error.message, 'error'); return; }
+      toast('Vehículo agregado');
+      document.getElementById('v-brand').value = '';
+      document.getElementById('v-model').value = '';
+      document.getElementById('v-year').value = '';
+      document.getElementById('v-plate').value = '';
+      loadVehicles(clientId);
+    }
+
+    async function deleteVehicle(id, desc, clientId) {
+      if (!confirm(`¿Eliminar vehículo ${desc}?`)) return;
+      const { error } = await db.from('vehicles').delete().eq('id', id);
+      if (error) { toast(error.message, 'error'); return; }
+      toast('Vehículo eliminado');
+      loadVehicles(clientId);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taller Pro — Citas</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/app.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h2>📅 Citas</h2>
+        <button class="btn btn-primary" onclick="openAppointmentModal()">+ Nueva Cita</button>
+      </div>
+
+      <!-- Filtros -->
+      <div class="filters-bar">
+        <input type="date" id="filter-date" onchange="loadAppointments()">
+        <select id="filter-status" onchange="loadAppointments()">
+          <option value="">Todos los estados</option>
+          <option value="pending">Pendiente</option>
+          <option value="confirmed">Confirmada</option>
+          <option value="in_progress">En curso</option>
+          <option value="completed">Completada</option>
+          <option value="cancelled">Cancelada</option>
+        </select>
+        <input type="text" id="filter-client" placeholder="Buscar cliente..." oninput="loadAppointmentsDebounced()">
+        <button class="btn btn-sm" onclick="clearFilters()">Limpiar</button>
+      </div>
+
+      <!-- Tabla -->
+      <div class="card">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Cliente</th>
+                <th>Vehículo</th>
+                <th>Servicio</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="appointments-table"></tbody>
+          </table>
+        </div>
+        <div class="loading-overlay" id="appointments-loading">
+          <div class="spinner"></div> Cargando...
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal Cita -->
+  <div class="modal-overlay" id="appointment-modal">
+    <div class="modal">
+      <h3 id="apt-modal-title">Nueva Cita</h3>
+      <form id="appointment-form" onsubmit="saveAppointment(event)">
+        <input type="hidden" id="apt-id">
+        <div class="form-group">
+          <label for="apt-client">Cliente *</label>
+          <select id="apt-client" required>
+            <option value="">Seleccionar...</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="apt-vehicle">Vehículo</label>
+          <select id="apt-vehicle">
+            <option value="">Sin vehículo</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="apt-service">Servicio</label>
+          <select id="apt-service">
+            <option value="">Sin servicio</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="apt-date">Fecha *</label>
+            <input type="date" id="apt-date" required>
+          </div>
+          <div class="form-group">
+            <label for="apt-time">Hora *</label>
+            <input type="time" id="apt-time" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="apt-status">Estado</label>
+          <select id="apt-status">
+            <option value="pending">Pendiente</option>
+            <option value="confirmed">Confirmada</option>
+            <option value="in_progress">En curso</option>
+            <option value="completed">Completada</option>
+            <option value="cancelled">Cancelada</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="apt-notes">Notas</label>
+          <textarea id="apt-notes" rows="2"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeModal('appointment-modal')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    let clientsCache = [];
+    let debounceTimer;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const session = await requireAuth();
+      if (!session) return;
+      await loadClientsAndServices();
+      loadAppointments();
+    });
+
+    async function loadClientsAndServices() {
+      const [clientsResult, servicesResult] = await Promise.all([
+        db.from('clients').select('id, full_name').order('full_name'),
+        db.from('services').select('id, name').order('name'),
+      ]);
+      clientsCache = clientsResult.data || [];
+    }
+
+    async function populateClientSelect(selectedId = null) {
+      const sel = document.getElementById('apt-client');
+      sel.innerHTML = '<option value="">Seleccionar...</option>' +
+        clientsCache.map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${escapeHTML(c.full_name)}</option>`).join('');
+    }
+
+    async function populateServiceSelect(selectedId = null) {
+      const { data } = await db.from('services').select('id, name').order('name');
+      const sel = document.getElementById('apt-service');
+      sel.innerHTML = '<option value="">Sin servicio</option>' +
+        (data || []).map(s => `<option value="${s.id}" ${s.id === selectedId ? 'selected' : ''}>${escapeHTML(s.name)}</option>`).join('');
+    }
+
+    async function populateVehicleSelect(clientId, selectedId = null) {
+      const sel = document.getElementById('apt-vehicle');
+      if (!clientId) {
+        sel.innerHTML = '<option value="">Sin vehículo</option>';
+        return;
+      }
+      const { data } = await db.from('vehicles').select('id, brand, model, license_plate').eq('client_id', clientId);
+      sel.innerHTML = '<option value="">Sin vehículo</option>' +
+        (data || []).map(v => `<option value="${v.id}" ${v.id === selectedId ? 'selected' : ''}>${escapeHTML(v.brand + ' ' + v.model + (v.license_plate ? ' (' + v.license_plate + ')' : ''))}</option>`).join('');
+    }
+
+    // Cambiar vehículos al seleccionar cliente
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('apt-client')?.addEventListener('change', function() {
+        populateVehicleSelect(this.value);
+      });
+    });
+
+    function loadAppointmentsDebounced() {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(loadAppointments, 300);
+    }
+
+    async function loadAppointments() {
+      const loading = document.getElementById('appointments-loading');
+      loading.style.display = 'flex';
+
+      let query = db
+        .from('appointments')
+        .select('id, date, time, status, notes, clients!appointments_client_id_fkey(full_name, phone), vehicles!appointments_vehicle_id_fkey(brand, model, license_plate), services!appointments_service_id_fkey(name)')
+        .order('date', { ascending: false })
+        .order('time');
+
+      const filterDate = document.getElementById('filter-date').value;
+      const filterStatus = document.getElementById('filter-status').value;
+      const filterClient = document.getElementById('filter-client').value.trim();
+
+      if (filterDate) query = query.eq('date', filterDate);
+      if (filterStatus) query = query.eq('status', filterStatus);
+      if (filterClient) {
+        // Buscar clientes que coincidan
+        const { data: matchingClients } = await db
+          .from('clients')
+          .select('id')
+          .ilike('full_name', `%${filterClient}%`);
+        if (matchingClients && matchingClients.length > 0) {
+          query = query.in('client_id', matchingClients.map(c => c.id));
+        } else {
+          query = query.eq('client_id', '00000000-0000-0000-0000-000000000000'); // no results
+        }
+      }
+
+      const { data, error } = await query;
+      loading.style.display = 'none';
+
+      const tbody = document.getElementById('appointments-table');
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger)">Error: ${error.message}</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = (data || []).map(a => `
+        <tr>
+          <td>${formatDate(a.date)}</td>
+          <td><strong>${formatTime(a.time)}</strong></td>
+          <td>${escapeHTML(a.clients?.full_name || '—')}</td>
+          <td>${a.vehicles ? escapeHTML(a.vehicles.brand + ' ' + a.vehicles.model) : '—'}</td>
+          <td>${escapeHTML(a.services?.name || '—')}</td>
+          <td><span class="badge badge-${a.status}">${statusLabel(a.status)}</span></td>
+          <td>
+            <button class="btn btn-sm" onclick="editAppointment('${a.id}')">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteAppointment('${a.id}')">🗑</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    async function openAppointmentModal(appointment = null) {
+      await populateClientSelect();
+      await populateServiceSelect();
+
+      document.getElementById('apt-modal-title').textContent = appointment ? 'Editar Cita' : 'Nueva Cita';
+      document.getElementById('apt-id').value = appointment?.id || '';
+      document.getElementById('apt-status').value = appointment?.status || 'pending';
+      document.getElementById('apt-notes').value = appointment?.notes || '';
+
+      if (appointment) {
+        document.getElementById('apt-client').value = appointment.client_id;
+        document.getElementById('apt-service').value = appointment.service_id || '';
+        document.getElementById('apt-date').value = appointment.date;
+        document.getElementById('apt-time').value = appointment.time;
+        await populateVehicleSelect(appointment.client_id, appointment.vehicle_id);
+      } else {
+        document.getElementById('apt-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('apt-time').value = '09:00';
+        await populateVehicleSelect('');
+      }
+
+      document.getElementById('appointment-modal').classList.add('active');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    async function saveAppointment(event) {
+      event.preventDefault();
+      const id = document.getElementById('apt-id').value;
+      const payload = {
+        client_id: document.getElementById('apt-client').value,
+        vehicle_id: document.getElementById('apt-vehicle').value || null,
+        service_id: document.getElementById('apt-service').value || null,
+        date: document.getElementById('apt-date').value,
+        time: document.getElementById('apt-time').value,
+        status: document.getElementById('apt-status').value,
+        notes: document.getElementById('apt-notes').value || null,
+      };
+
+      let error;
+      if (id) {
+        ({ error } = await db.from('appointments').update(payload).eq('id', id));
+      } else {
+        ({ error } = await db.from('appointments').insert(payload));
+      }
+
+      if (error) {
+        toast(error.message, 'error');
+      } else {
+        toast(id ? 'Cita actualizada' : 'Cita creada');
+        closeModal('appointment-modal');
+        loadAppointments();
+      }
+    }
+
+    async function editAppointment(id) {
+      const { data } = await db.from('appointments').select('*').eq('id', id).single();
+      if (data) openAppointmentModal(data);
+    }
+
+    async function deleteAppointment(id) {
+      if (!confirm('¿Eliminar esta cita?')) return;
+      const { error } = await db.from('appointments').delete().eq('id', id);
+      if (error) { toast(error.message, 'error'); return; }
+      toast('Cita eliminada');
+      loadAppointments();
+    }
+
+    function clearFilters() {
+      document.getElementById('filter-date').value = '';
+      document.getElementById('filter-status').value = '';
+      document.getElementById('filter-client').value = '';
+      loadAppointments();
+    }
+  </script>
+</body>
+</html>

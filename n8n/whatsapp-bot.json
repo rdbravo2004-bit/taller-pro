@@ -1,0 +1,147 @@
+{
+  "name": "Taller Pro — WhatsApp Bot",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-webhook",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-receive",
+      "name": "Webhook (recibe msg)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extraer datos del mensaje entrante de WhatsApp\n// Ajustar según el proveedor (Twilio, Meta, etc.)\n\nconst body = $input.first().json;\n\nreturn {\n  message: body.body || body.text || body.message || body.Body,\n  phone: body.from || body.wa_id || body.From || body.sender,\n  name: body.profileName || body.pushname || body.senderName || \"Cliente\"\n};"
+      },
+      "id": "extract-message",
+      "name": "Extraer datos",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://TU_PROYECTO.supabase.co/functions/v1/whatsapp-webhook",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer TU_ANON_KEY_DE_SUPABASE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.message }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "name",
+              "value": "={{ $json.name }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000,
+          "redirect": { "redirect": {} }
+        }
+      },
+      "id": "call-webhook",
+      "name": "Llamar Edge Function",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mapear respuesta a formato WhatsApp\nconst response = $input.first().json;\n\nreturn {\n  to: $('Extraer datos').first().json.phone,\n  body: response.reply || \"Procesando tu consulta...\",\n  type: \"text\"\n};"
+      },
+      "id": "format-response",
+      "name": "Formatear respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/TU_PHONE_NUMBER_ID/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer TU_WHATSAPP_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json.to }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text.body",
+              "value": "={{ $json.body }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Webhook (recibe msg)": {
+      "main": [[{ "node": "Extraer datos", "type": "main", "index": 0 }]]
+    },
+    "Extraer datos": {
+      "main": [[{ "node": "Llamar Edge Function", "type": "main", "index": 0 }]]
+    },
+    "Llamar Edge Function": {
+      "main": [[{ "node": "Formatear respuesta", "type": "main", "index": 0 }]]
+    },
+    "Formatear respuesta": {
+      "main": [[{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [{ "name": "taller-pro" }],
+  "pinData": {},
+  "versionId": "1.0.0",
+  "active": true,
+  "id": "whatsapp-bot",
+  "description": "Recibe mensajes de WhatsApp, los procesa con IA (DeepSeek) via Supabase Edge Function, y responde al cliente. Flujo: WhatsApp → Webhook → Edge Function → WhatsApp."
+}

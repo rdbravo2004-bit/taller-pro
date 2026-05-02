@@ -1,0 +1,19 @@
+=== CÓMO ENTRAR A LA APLICACIÓN ===
+Seguí estos pasos en orden:
+
+1. Abrí PowerShell (tecla Windows + escribir "powershell" + Enter)
+
+2. Pegá esto y apretá Enter:
+   npx serve D:\talleres_v0
+
+3. Esperá que muestre algo como "Serving! http://localhost:XXXX"
+   Anotá el número de puerto que te da (ej: 51581).
+
+4. Abrí Edge y escribí en la barra de direcciones:
+   http://localhost:XXXX/login.html
+   (reemplazá XXXX con el número del paso 3)
+
+5. Iniciá sesión con tu email y contraseña.
+
+IMPORTANTE: No cierres la ventana de PowerShell mientras usás la app.
+Cuando termines, cerrá Edge y después cerrá la ventana de PowerShell.

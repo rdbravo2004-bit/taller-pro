@@ -1,0 +1,157 @@
+{
+  "name": "Taller Pro — Recordatorios Diarios",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Cada día 18:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://TU_PROYECTO.supabase.co/functions/v1/daily-reminders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer TU_ANON_KEY_DE_SUPABASE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": []
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "call-reminders",
+      "name": "Generar recordatorios",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extraer cada recordatorio para enviar individualmente\nconst data = $input.first().json;\n\nif (data.reminders_generated === 0) {\n  return []; // No hay recordatorios, terminar\n}\n\nreturn data.results.map(r => ({\n  phone: r.phone,\n  message: r.message,\n  status: r.status\n}));"
+      },
+      "id": "split-reminders",
+      "name": "Separar recordatorios",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "condition-phone",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "—",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "filter-phone",
+      "name": "Tiene teléfono?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/TU_PHONE_NUMBER_ID/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer TU_WHATSAPP_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text.body",
+              "value": "={{ $json.message.replace('...', '') }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Cada día 18:00": {
+      "main": [[{ "node": "Generar recordatorios", "type": "main", "index": 0 }]]
+    },
+    "Generar recordatorios": {
+      "main": [[{ "node": "Separar recordatorios", "type": "main", "index": 0 }]]
+    },
+    "Separar recordatorios": {
+      "main": [[{ "node": "Tiene teléfono?", "type": "main", "index": 0 }]]
+    },
+    "Tiene teléfono?": {
+      "main": [
+        [{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }],
+        []
+      ]
+    }
+  },
+  "settings": {
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [{ "name": "taller-pro" }],
+  "pinData": {},
+  "versionId": "1.0.0",
+  "active": true,
+  "id": "daily-reminders",
+  "description": "Todos los días a las 18:00 busca citas del día siguiente. Genera recordatorios y los envía por WhatsApp. Usa la Supabase Edge Function daily-reminders para generar las notificaciones."
+}

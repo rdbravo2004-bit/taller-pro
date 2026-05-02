@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taller Pro — Login</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/particles.js"></script>
+</head>
+<body>
+  <div class="auth-particles" id="auth-particles"></div>
+  <div class="auth-container">
+    <div class="auth-card">
+      <h1>Taller Pro</h1>
+      <p>Sistema de gestión de citas</p>
+
+      <div id="login-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="tu@email.com" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="password">Contraseña</label>
+          <input type="password" id="password" placeholder="Tu contraseña">
+        </div>
+        <button class="btn btn-primary btn-block" onclick="signInPassword()">
+          Iniciar sesión
+        </button>
+        <hr style="margin:1.5rem 0; border-color:var(--border)">
+        <p style="font-size:.8rem; color:var(--text-muted)">
+          ¿No tenés cuenta? <a href="register.html" style="color:var(--primary)">Registrate acá</a>
+        </p>
+      </div>
+
+      <div id="login-message" style="margin-top:1rem; font-size:.85rem;"></div>
+    </div>
+  </div>
+
+  <script>
+    async function sendMagicLink() {
+      const email = document.getElementById('email').value.trim();
+      const msg = document.getElementById('login-message');
+
+      if (!email) {
+        msg.innerHTML = '<span style="color:var(--danger)">Ingresá tu email</span>';
+        return;
+      }
+
+      const { error } = await db.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.origin + '/dashboard.html' }
+      });
+
+      if (error) {
+        msg.innerHTML = `<span style="color:var(--danger)">Error: ${error.message}</span>`;
+      } else {
+        msg.innerHTML = '<span style="color:var(--success)">Revisá tu email. Te enviamos el enlace de acceso.</span>';
+      }
+    }
+
+    async function signInPassword() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const msg = document.getElementById('login-message');
+
+      const { error } = await db.auth.signInWithPassword({ email, password });
+      if (error) {
+        msg.innerHTML = `<span style="color:var(--danger)">${error.message}</span>`;
+      } else {
+        window.location.href = 'dashboard.html';
+      }
+    }
+
+    // Si ya está logueado, redirigir al dashboard
+    (async () => {
+      const { data: { session } } = await db.auth.getSession();
+      if (session) window.location.href = 'dashboard.html';
+    })();
+
+    // Iniciar partículas de fondo
+    initParticles('auth-particles', ['Taller', 'Pro']);
+  </script>
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taller Pro — Dashboard</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6/index.global.min.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/app.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h2>Dashboard</h2>
+        <span id="current-date" style="color:var(--text-muted)"></span>
+      </div>
+
+      <div class="dashboard-grid">
+        <div class="dashboard-main">
+          <!-- Stats -->
+          <div class="stats-grid" id="stats"></div>
+
+          <!-- Calendario -->
+          <div class="card" style="margin-bottom:1.5rem">
+            <div class="card-header">
+              <h2>Calendario de Citas</h2>
+            </div>
+            <div id="calendar"></div>
+          </div>
+
+          <!-- Próximas citas -->
+          <div class="card">
+            <div class="card-header">
+              <h2>Citas de Hoy</h2>
+              <button class="btn btn-primary btn-sm" onclick="window.location.href='appointments.html'">Nueva Cita</button>
+            </div>
+            <div class="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Hora</th>
+                    <th>Cliente</th>
+                    <th>Vehículo</th>
+                    <th>Servicio</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody id="today-appointments"></tbody>
+              </table>
+            </div>
+            <div id="today-empty" style="text-align:center;color:var(--text-muted);padding:2rem;display:none">
+              No hay citas para hoy
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat IA -->
+        <div class="card chat-card">
+          <div class="card-header">
+            <h2>Asistente IA</h2>
+          </div>
+          <div class="chat-messages" id="chat-messages">
+            <div class="chat-message assistant">
+              Hola, soy el asistente de <strong>Taller Pro</strong>. Puedo ayudarte con:<br><br>
+              • Consultar disponibilidad de turnos<br>
+              • Crear una cita nueva<br>
+              • Consultar el estado de una cita
+            </div>
+          </div>
+          <div class="chat-quick-actions">
+            <button class="chat-quick" onclick="sendQuick('¿Tenés turnos disponibles para esta semana?')">📅 Disponibilidad</button>
+            <button class="chat-quick" onclick="sendQuick('Quiero crear una cita nueva')">➕ Crear cita</button>
+            <button class="chat-quick" onclick="sendQuick('Consultar estado de mis citas de hoy')">🔍 Consultar cita</button>
+          </div>
+          <form class="chat-input-row" onsubmit="sendMessage(event)">
+            <input type="text" id="chat-input" placeholder="Escribí tu consulta..." autocomplete="off">
+            <button type="submit" class="btn btn-primary btn-sm">Enviar</button>
+          </form>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    let calendar;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const session = await requireAuth();
+      if (!session) return;
+
+      document.getElementById('current-date').textContent =
+        new Date().toLocaleDateString('es-AR', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+      await loadStats();
+      await loadTodayAppointments();
+      initCalendar();
+    });
+
+    async function loadStats() {
+      const today = new Date().toISOString().split('T')[0];
+
+      const [{ count: totalToday }, { count: totalPending }, { count: totalCompleted }] = await Promise.all([
+        db.from('appointments').select('*', { count:'exact', head:true }).eq('date', today),
+        db.from('appointments').select('*', { count:'exact', head:true }).eq('status', 'pending'),
+        db.from('appointments').select('*', { count:'exact', head:true }).eq('status', 'completed'),
+      ]);
+
+      document.getElementById('stats').innerHTML = `
+        <div class="stat-card">
+          <div class="stat-value">${totalToday || 0}</div>
+          <div class="stat-label">Citas hoy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${totalPending || 0}</div>
+          <div class="stat-label">Pendientes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${totalCompleted || 0}</div>
+          <div class="stat-label">Completadas</div>
+        </div>
+      `;
+    }
+
+    async function loadTodayAppointments() {
+      const today = new Date().toISOString().split('T')[0];
+
+      const { data, error } = await db
+        .from('appointments')
+        .select('id, time, status, clients!appointments_client_id_fkey(full_name), vehicles!appointments_vehicle_id_fkey(brand, model, license_plate), services!appointments_service_id_fkey(name)')
+        .eq('date', today)
+        .order('time');
+
+      const tbody = document.getElementById('today-appointments');
+      const empty = document.getElementById('today-empty');
+
+      if (!data || data.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+
+      empty.style.display = 'none';
+      tbody.innerHTML = data.map(a => `
+        <tr>
+          <td><strong>${formatTime(a.time)}</strong></td>
+          <td>${escapeHTML(a.clients?.full_name || '—')}</td>
+          <td>${a.vehicles ? escapeHTML(a.vehicles.brand + ' ' + a.vehicles.model) : '—'}</td>
+          <td>${escapeHTML(a.services?.name || '—')}</td>
+          <td><span class="badge badge-${a.status}">${statusLabel(a.status)}</span></td>
+        </tr>
+      `).join('');
+    }
+
+    function initCalendar() {
+      const calEl = document.getElementById('calendar');
+      calendar = new FullCalendar.Calendar(calEl, {
+        initialView: 'dayGridMonth',
+        locale: 'es',
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        buttonText: {
+          today: 'Hoy',
+          month: 'Mes',
+          week: 'Semana',
+          day: 'Día'
+        },
+        events: async (info, successCallback) => {
+          const { data } = await db
+            .from('appointments')
+            .select('id, date, time, status, clients(full_name), services(name)')
+            .gte('date', info.startStr)
+            .lte('date', info.endStr);
+
+          const events = (data || []).map(a => ({
+            title: `${a.clients?.full_name || '?'} - ${a.services?.name || '?'}`,
+            start: `${a.date}T${a.time}`,
+            color: statusColor(a.status),
+            extendedProps: { id: a.id, status: a.status }
+          }));
+
+          successCallback(events);
+        },
+        eventClick: (info) => {
+          window.location.href = 'appointments.html';
+        }
+      });
+      calendar.render();
+    }
+
+    function statusColor(status) {
+      const colors = {
+        pending: '#f59e0b',
+        confirmed: '#3b82f6',
+        in_progress: '#6366f1',
+        completed: '#22c55e',
+        cancelled: '#ef4444'
+      };
+      return colors[status] || '#64748b';
+    }
+
+    // ─── Chat IA ───
+
+    const CHAT_SYSTEM_PROMPT = `Sos el asistente virtual de Taller Pro, un taller mecánico. Tu trabajo es ayudar a clientes y operarios con las citas.
+
+DATOS DEL TALLER:
+- Servicios disponibles: Cambio de aceite ($45, 30min), Alineación y balanceo ($80, 60min), Diagnóstico computarizado ($50, 45min), Revisión de frenos ($25, 30min), Cambio de neumáticos ($40, 60min), Service completo ($150, 120min), Aire acondicionado ($70, 60min), Reparación eléctrica ($120, 90min).
+- Horario: lunes a viernes de 8:00 a 18:00, sábados de 8:00 a 13:00.
+- Estados de cita: pendiente, confirmada, en_curso, completada, cancelada.
+
+REGLAS:
+1. Para CREAR una cita necesitás: nombre completo del cliente, teléfono, vehículo (marca y modelo), servicio, fecha y hora. Pedí los datos que falten de a uno.
+2. Para CONSULTAR disponibilidad: indicá que el operario revise el calendario en el panel izquierdo, pero sugerí horarios típicos libres (mañana 8-10am, tarde 2-4pm).
+3. Para CONSULTAR una cita: pedí el nombre del cliente o la fecha para buscarla.
+4. Respondé siempre en español, con tono amable y profesional.
+5. Sé conciso. No des listas enormes de servicios a menos que te lo pidan.`;
+
+    let chatMessages = [
+      { role: 'system', content: CHAT_SYSTEM_PROMPT }
+    ];
+
+    function addChatMessage(role, content) {
+      const container = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = `chat-message ${role}`;
+      div.textContent = content;
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      chatMessages.push({ role, content });
+    }
+
+    function showTyping() {
+      const container = document.getElementById('chat-messages');
+      const div = document.createElement('div');
+      div.className = 'chat-typing';
+      div.id = 'chat-typing';
+      div.innerHTML = '<span></span><span></span><span></span>';
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    function hideTyping() {
+      const el = document.getElementById('chat-typing');
+      if (el) el.remove();
+    }
+
+    async function callDeepSeek(messages) {
+      const { data: { session } } = await db.auth.getSession();
+      const response = await fetch(CHAT_AI_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ messages })
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        throw new Error(`API error ${response.status}: ${err}`);
+      }
+
+      const data = await response.json();
+      return data.reply;
+    }
+
+    async function sendMessage(event) {
+      if (event) event.preventDefault();
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      addChatMessage('user', text);
+      showTyping();
+
+      try {
+        const messages = [...chatMessages];
+        const reply = await callDeepSeek(messages);
+        hideTyping();
+        addChatMessage('assistant', reply);
+      } catch (err) {
+        hideTyping();
+        addChatMessage('assistant', 'Error al conectar con el asistente. Revisá tu conexión.');
+        console.error('DeepSeek error:', err);
+      }
+    }
+
+    function sendQuick(text) {
+      document.getElementById('chat-input').value = text;
+      sendMessage();
+    }
+  </script>
+</body>
+</html>

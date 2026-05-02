@@ -1,0 +1,14 @@
+ERROR REAL:
+Tracking Prevention blocked access to storage for https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js.
+(repetido 4 veces)
+
+CAUSA: Edge con "Prevención de seguimiento" en modo "Estricta" bloquea el acceso a localStorage desde scripts CDN cuando los archivos se abren por file://. Supabase JS necesita localStorage para guardar la sesión auth. Sin acceso a storage, la sesión se pierde inmediatamente después del login.
+
+SOLUCIÓN 1 (rápida): Edge → Configuración → Privacidad → Prevención de seguimiento → "Equilibrada"
+
+SOLUCIÓN 2 (recomendada): Usar servidor HTTP local en vez de file://
+  cd D:\talleres_v0
+  npx serve .
+  Abrir http://localhost:3000/login.html
+
+SOLUCIÓN 3 (código): Modificar supabase.js con persistSession: false + memory storage

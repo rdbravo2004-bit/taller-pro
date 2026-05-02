@@ -1,0 +1,195 @@
+{
+  "name": "Taller Pro — Confirmación de Citas",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Cada 5 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://TU_PROYECTO.supabase.co/rest/v1/rpc/generate_daily_reminders",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "TU_SERVICE_ROLE_KEY_DE_SUPABASE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer TU_SERVICE_ROLE_KEY_DE_SUPABASE"
+            }
+          ]
+        },
+        "sendBody": false,
+        "options": {}
+      },
+      "id": "trigger-rpc",
+      "name": "Generar notificaciones (RPC)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://TU_PROYECTO.supabase.co/rest/v1/notifications?select=id,recipient,message,client_id,appointment_id,created_at&status=eq.pending&type=eq.whatsapp&order=created_at.asc&limit=10",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "TU_SERVICE_ROLE_KEY_DE_SUPABASE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer TU_SERVICE_ROLE_KEY_DE_SUPABASE"
+            }
+          ]
+        },
+        "sendBody": false,
+        "options": {}
+      },
+      "id": "fetch-pending",
+      "name": "Buscar pendientes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Procesar cada notificación pendiente\nconst data = $input.first().json;\n\nif (!Array.isArray(data) || data.length === 0) {\n  return [];\n}\n\nreturn data.map(n => ({\n  notification_id: n.id,\n  phone: n.recipient,\n  message: n.message,\n  client_id: n.client_id,\n  appointment_id: n.appointment_id\n}));"
+      },
+      "id": "split-notifications",
+      "name": "Separar notificaciones",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://graph.facebook.com/v19.0/TU_PHONE_NUMBER_ID/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer TU_WHATSAPP_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "messaging_product",
+              "value": "whatsapp"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json.phone }}"
+            },
+            {
+              "name": "type",
+              "value": "text"
+            },
+            {
+              "name": "text.body",
+              "value": "={{ $json.message }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "send-whatsapp",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://TU_PROYECTO.supabase.co/rest/v1/notifications?id=eq.{{ $json.notification_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "TU_SERVICE_ROLE_KEY_DE_SUPABASE"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer TU_SERVICE_ROLE_KEY_DE_SUPABASE"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "status",
+              "value": "sent"
+            },
+            {
+              "name": "sent_at",
+              "value": "={{ new Date().toISOString() }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mark-sent",
+      "name": "Marcar como enviada",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Cada 5 minutos": {
+      "main": [[{ "node": "Generar notificaciones (RPC)", "type": "main", "index": 0 }]]
+    },
+    "Generar notificaciones (RPC)": {
+      "main": [[{ "node": "Buscar pendientes", "type": "main", "index": 0 }]]
+    },
+    "Buscar pendientes": {
+      "main": [[{ "node": "Separar notificaciones", "type": "main", "index": 0 }]]
+    },
+    "Separar notificaciones": {
+      "main": [[{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]]
+    },
+    "Enviar WhatsApp": {
+      "main": [[{ "node": "Marcar como enviada", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [{ "name": "taller-pro" }],
+  "pinData": {},
+  "versionId": "1.0.0",
+  "active": true,
+  "id": "appointment-confirmation",
+  "description": "Cada 5 minutos busca notificaciones pendientes en Supabase y las envía por WhatsApp. Al completar, marca la notificación como 'sent'. El trigger de BD (03_triggers.sql) genera automáticamente las notificaciones cuando una cita se confirma."
+}
