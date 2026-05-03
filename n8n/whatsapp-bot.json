@@ -16,7 +16,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extraer datos del mensaje entrante de WhatsApp\n// Ajustar según el proveedor (Twilio, Meta, etc.)\n\nconst body = $input.first().json;\n\nreturn {\n  message: body.body || body.text || body.message || body.Body,\n  phone: body.from || body.wa_id || body.From || body.sender,\n  name: body.profileName || body.pushname || body.senderName || \"Cliente\"\n};"
+        "jsCode": "const body = $input.first().json;\n\nreturn {\n  message: body.message || body.text || \"\",\n  phone: body.phone || body.from || \"\",\n  name: body.name || \"Cliente\"\n};"
       },
       "id": "extract-message",
       "name": "Extraer datos",
@@ -26,9 +26,9 @@
     },
     {
       "parameters": {
+        "method": "POST",
         "url": "https://glrveolwztjirwatdmyf.supabase.co/functions/v1/whatsapp-webhook",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -38,27 +38,11 @@
             }
           ]
         },
+        "sendHeaders": true,
         "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "message",
-              "value": "={{ $json.message }}"
-            },
-            {
-              "name": "phone",
-              "value": "={{ $json.phone }}"
-            },
-            {
-              "name": "name",
-              "value": "={{ $json.name }}"
-            }
-          ]
-        },
-        "options": {
-          "timeout": 30000,
-          "redirect": { "redirect": {} }
-        }
+        "specifyBody": "json",
+        "jsonBody": "{\"message\":\"{{ $json.message }}\",\"phone\":\"{{ $json.phone }}\",\"name\":\"{{ $json.name }}\" }",
+        "options": {}
       },
       "id": "call-webhook",
       "name": "Llamar Edge Function",
@@ -68,55 +52,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Mapear respuesta a formato WhatsApp\nconst response = $input.first().json;\n\nreturn {\n  to: $('Extraer datos').first().json.phone,\n  body: response.reply || \"Procesando tu consulta...\",\n  type: \"text\"\n};"
+        "jsCode": "const response = $input.first().json;\nconst token = 'EAANYyZCf5JkYBRSiZAgl1azk6mhgZCq3qFNZCjIDZCTnSVnJo5E6FtERbBZCld4M6ioW36DKpZCD36VcZBihmkui9DZAE0qhdIjMKVtsLOWfOhcvGWLCncXDzrnXXZA5EsJUygHLZAZBrCLcZC6ZCX5cdA3V8yhZA8nDGyyGRum1oHYCH3fTZCuZBbVMdZAbh5hQ8UDSoqXJPwUdRmC7ndl8ZBJjtU7UaxZCe3H3foDCAUAY5yCURPsw5ueCLxyPOuFBxDNmJCqioLKVTo3V7oSbZBJGVrb0IxfqiM7TOrDIcM0vlZBgZDZD';\nconst phone = response.phone;\nconst reply = response.reply || \"Procesando tu consulta...\";\n\nconst result = await this.helpers.request({\n  method: 'POST',\n  uri: 'https://graph.facebook.com/v22.0/1022623927610993/messages',\n  headers: {\n    'Authorization': 'Bearer ' + token,\n    'Content-Type': 'application/json'\n  },\n  body: {\n    messaging_product: 'whatsapp',\n    to: phone,\n    type: 'text',\n    text: { preview_url: false, body: reply }\n  },\n  json: true\n});\n\nreturn { sent: true, phone, reply };\n"
       },
-      "id": "format-response",
-      "name": "Formatear respuesta",
+      "id": "send-whatsapp",
+      "name": "Responder WhatsApp",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [850, 300]
-    },
-    {
-      "parameters": {
-        "url": "https://graph.facebook.com/v19.0/1022623927610993/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer EAANYyZCf5JkYBRSiZAgl1azk6mhgZCq3qFNZCjIDZCTnSVnJo5E6FtERbBZCld4M6ioW36DKpZCD36VcZBihmkui9DZAE0qhdIjMKVtsLOWfOhcvGWLCncXDzrnXXZA5EsJUygHLZAZBrCLcZC6ZCX5cdA3V8yhZA8nDGyyGRum1oHYCH3fTZCuZBbVMdZAbh5hQ8UDSoqXJPwUdRmC7ndl8ZBJjtU7UaxZCe3H3foDCAUAY5yCURPsw5ueCLxyPOuFBxDNmJCqioLKVTo3V7oSbZBJGVrb0IxfqiM7TOrDIcM0vlZBgZDZD"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "messaging_product",
-              "value": "whatsapp"
-            },
-            {
-              "name": "to",
-              "value": "={{ $json.to }}"
-            },
-            {
-              "name": "type",
-              "value": "text"
-            },
-            {
-              "name": "text.body",
-              "value": "={{ $json.body }}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "send-whatsapp",
-      "name": "Enviar WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [1050, 300]
     }
   ],
   "connections": {
@@ -127,10 +69,7 @@
       "main": [[{ "node": "Llamar Edge Function", "type": "main", "index": 0 }]]
     },
     "Llamar Edge Function": {
-      "main": [[{ "node": "Formatear respuesta", "type": "main", "index": 0 }]]
-    },
-    "Formatear respuesta": {
-      "main": [[{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Responder WhatsApp", "type": "main", "index": 0 }]]
     }
   },
   "settings": {
@@ -140,8 +79,8 @@
   "staticData": null,
   "tags": [{ "name": "taller-pro" }],
   "pinData": {},
-  "versionId": "1.0.0",
+  "versionId": "2.0.0",
   "active": true,
   "id": "whatsapp-bot",
-  "description": "Recibe mensajes de WhatsApp, los procesa con IA (DeepSeek) via Supabase Edge Function, y responde al cliente. Flujo: WhatsApp → Webhook → Edge Function → WhatsApp."
+  "description": "WhatsApp Bot - Flujo: Webhook → Extraer → Edge Function (DeepSeek) → Code (envía WhatsApp). v2 simplificada."
 }
