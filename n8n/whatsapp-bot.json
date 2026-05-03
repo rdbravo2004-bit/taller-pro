@@ -52,7 +52,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const response = $input.first().json;\nconst token = 'EAANYyZCf5JkYBRSiZAgl1azk6mhgZCq3qFNZCjIDZCTnSVnJo5E6FtERbBZCld4M6ioW36DKpZCD36VcZBihmkui9DZAE0qhdIjMKVtsLOWfOhcvGWLCncXDzrnXXZA5EsJUygHLZAZBrCLcZC6ZCX5cdA3V8yhZA8nDGyyGRum1oHYCH3fTZCuZBbVMdZAbh5hQ8UDSoqXJPwUdRmC7ndl8ZBJjtU7UaxZCe3H3foDCAUAY5yCURPsw5ueCLxyPOuFBxDNmJCqioLKVTo3V7oSbZBJGVrb0IxfqiM7TOrDIcM0vlZBgZDZD';\n\nconst send = await this.helpers.request({\n  method: 'POST',\n  url: 'https://graph.facebook.com/v22.0/1022623927610993/messages',\n  headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },\n  body: { messaging_product: 'whatsapp', to: response.phone, type: 'text', text: { body: response.reply } },\n  json: true\n});\n\nreturn { sent: true, phone: response.phone, reply: response.reply, meta: send };\n"
+        "jsCode": "const response = $input.first().json;\nconst token = 'EAANYyZCf5JkYBRSiZAgl1azk6mhgZCq3qFNZCjIDZCTnSVnJo5E6FtERbBZCld4M6ioW36DKpZCD36VcZBihmkui9DZAE0qhdIjMKVtsLOWfOhcvGWLCncXDzrnXXZA5EsJUygHLZAZBrCLcZC6ZCX5cdA3V8yhZA8nDGyyGRum1oHYCH3fTZCuZBbVMdZAbh5hQ8UDSoqXJPwUdRmC7ndl8ZBJjtU7UaxZCe3H3foDCAUAY5yCURPsw5ueCLxyPOuFBxDNmJCqioLKVTo3V7oSbZBJGVrb0IxfqiM7TOrDIcM0vlZBgZDZD';\n\nconst send = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://graph.facebook.com/v22.0/1022623927610993/messages',\n  headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },\n  body: { messaging_product: 'whatsapp', to: response.phone, type: 'text', text: { body: response.reply } }\n});\n\nreturn { sent: true, result: send };\n"
       },
       "id": "send-whatsapp",
       "name": "Responder WhatsApp",
