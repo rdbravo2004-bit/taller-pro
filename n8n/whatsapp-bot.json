@@ -26,7 +26,7 @@
     },
     {
       "parameters": {
-        "url": "https://TU_PROYECTO.supabase.co/functions/v1/whatsapp-webhook",
+        "url": "https://glrveolwztjirwatdmyf.supabase.co/functions/v1/whatsapp-webhook",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -34,7 +34,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer TU_ANON_KEY_DE_SUPABASE"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscnZlb2x3enRqaXJ3YXRkbXlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjgwNjIsImV4cCI6MjA5MzEwNDA2Mn0.mzliyZzOUTFx0p79VatSSTpID6xkofyUW3vzn8dB4HI"
             }
           ]
         },

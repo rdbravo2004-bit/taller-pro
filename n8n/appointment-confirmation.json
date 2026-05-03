@@ -21,7 +21,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://TU_PROYECTO.supabase.co/rest/v1/rpc/generate_daily_reminders",
+        "url": "https://glrveolwztjirwatdmyf.supabase.co/rest/v1/rpc/generate_daily_reminders",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "headerParameters": {
@@ -48,7 +48,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://TU_PROYECTO.supabase.co/rest/v1/notifications?select=id,recipient,message,client_id,appointment_id,created_at&status=eq.pending&type=eq.whatsapp&order=created_at.asc&limit=10",
+        "url": "https://glrveolwztjirwatdmyf.supabase.co/rest/v1/notifications?select=id,recipient,message,client_id,appointment_id,created_at&status=eq.pending&type=eq.whatsapp&order=created_at.asc&limit=10",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "headerParameters": {
@@ -127,7 +127,7 @@
     {
       "parameters": {
         "method": "PATCH",
-        "url": "=https://TU_PROYECTO.supabase.co/rest/v1/notifications?id=eq.{{ $json.notification_id }}",
+        "url": "=https://glrveolwztjirwatdmyf.supabase.co/rest/v1/notifications?id=eq.{{ $json.notification_id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "headerParameters": {
