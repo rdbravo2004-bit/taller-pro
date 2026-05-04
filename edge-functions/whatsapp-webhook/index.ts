@@ -71,8 +71,15 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const body: WebhookRequest = await req.json();
-    const { message, phone, name } = body;
+    let body: WebhookRequest = await req.json();
+    if (body.parameters) {
+      body = body.parameters as unknown as WebhookRequest;
+    }
+    if (!body.message && body.body) {
+      body.message = typeof body.body === "string" ? body.body : (body.body as Record<string,string>).message || "";
+    }
+    let { message, phone, name } = body;
+    phone = phone.replace(/^\+/, "");
 
     if (!message?.trim() || !phone?.trim()) {
       return new Response(
@@ -231,7 +238,7 @@ Deno.serve(async (req: Request) => {
         raw_payload: action,
       });
 
-      return new Response(JSON.stringify({ reply: confirmationMsg, action: "created" }), {
+      return new Response(JSON.stringify({ reply: confirmationMsg, phone, action: "created" }), {
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -257,7 +264,7 @@ Deno.serve(async (req: Request) => {
           ? `Para el ${date} hay ${availableSlots.length} horarios disponibles. Los primeros: ${availableSlots.slice(0, 5).join(", ")}. ¿Querés reservar alguno?`
           : `El ${date} está completo. ¿Probamos otro día?`;
 
-      return new Response(JSON.stringify({ reply: availText, action: "availability" }), {
+      return new Response(JSON.stringify({ reply: availText, phone, action: "availability" }), {
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -273,7 +280,7 @@ Deno.serve(async (req: Request) => {
 
       if (!matchingClients?.length) {
         const notFoundMsg = "No encontré citas con ese dato. ¿Me pasás tu nombre completo o teléfono?";
-        return new Response(JSON.stringify({ reply: notFoundMsg }), {
+        return new Response(JSON.stringify({ reply: notFoundMsg, phone }), {
           headers: { "Content-Type": "application/json" },
         });
       }
@@ -288,7 +295,7 @@ Deno.serve(async (req: Request) => {
 
       if (!appointments?.length) {
         const noApptMsg = "No tenés citas registradas. ¿Querés sacar un turno?";
-        return new Response(JSON.stringify({ reply: noApptMsg }), {
+        return new Response(JSON.stringify({ reply: noApptMsg, phone }), {
           headers: { "Content-Type": "application/json" },
         });
       }
@@ -301,7 +308,7 @@ Deno.serve(async (req: Request) => {
         .join("\n");
 
       const apptMsg = `Tus citas:\n${apptList}`;
-      return new Response(JSON.stringify({ reply: apptMsg, action: "appointment_list" }), {
+      return new Response(JSON.stringify({ reply: apptMsg, phone, action: "appointment_list" }), {
         headers: { "Content-Type": "application/json" },
       });
     }
@@ -314,7 +321,7 @@ Deno.serve(async (req: Request) => {
       message: reply,
     });
 
-    return new Response(JSON.stringify({ reply }), {
+    return new Response(JSON.stringify({ reply, phone }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
