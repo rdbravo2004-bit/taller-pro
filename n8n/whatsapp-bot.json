@@ -2,27 +2,12 @@
   "name": "Taller Pro — WhatsApp Bot",
   "nodes": [
     {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "whatsapp-webhook",
-        "responseMode": "lastNode",
-        "options": {}
-      },
-      "id": "webhook-receive",
-      "name": "Webhook (recibe msg)",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [250, 300]
+      "parameters": { "httpMethod": "POST", "path": "whatsapp-webhook", "responseMode": "lastNode", "options": {} },
+      "id": "webhook-receive", "name": "Webhook (recibe msg)", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [250, 300]
     },
     {
-      "parameters": {
-        "jsCode": "const body = $input.first().json;\n\nreturn {\n  message: body.message || body.text || \"\",\n  phone: body.phone || body.from || \"\",\n  name: body.name || \"Cliente\"\n};"
-      },
-      "id": "extract-message",
-      "name": "Extraer datos",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [450, 300]
+      "parameters": { "jsCode": "const body = $input.first().json;\nreturn { message: body.message || '', phone: body.phone || '', name: body.name || 'Cliente' };" },
+      "id": "extract", "name": "Extraer datos", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [450, 300]
     },
     {
       "parameters": {
@@ -30,57 +15,39 @@
         "url": "https://glrveolwztjirwatdmyf.supabase.co/functions/v1/whatsapp-webhook",
         "authentication": "none",
         "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscnZlb2x3enRqaXJ3YXRkbXlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjgwNjIsImV4cCI6MjA5MzEwNDA2Mn0.mzliyZzOUTFx0p79VatSSTpID6xkofyUW3vzn8dB4HI"
-            }
-          ]
-        },
-        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscnZlb2x3enRqaXJ3YXRkbXlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjgwNjIsImV4cCI6MjA5MzEwNDA2Mn0.mzliyZzOUTFx0p79VatSSTpID6xkofyUW3vzn8dB4HI" }] },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{\"message\":\"{{ $json.message }}\",\"phone\":\"{{ $json.phone }}\",\"name\":\"{{ $json.name }}\" }",
+        "jsonBody": "{\"message\":\"={{ $json.message }}\",\"phone\":\"={{ $json.phone }}\",\"name\":\"={{ $json.name }}\" }",
         "options": {}
       },
-      "id": "call-webhook",
-      "name": "Llamar Edge Function",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [650, 300]
+      "id": "call-ef", "name": "Llamar Edge Function", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4, "position": [650, 300]
     },
     {
       "parameters": {
-        "jsCode": "const response = $input.first().json;\nconst token = 'EAANYyZCf5JkYBRSiZAgl1azk6mhgZCq3qFNZCjIDZCTnSVnJo5E6FtERbBZCld4M6ioW36DKpZCD36VcZBihmkui9DZAE0qhdIjMKVtsLOWfOhcvGWLCncXDzrnXXZA5EsJUygHLZAZBrCLcZC6ZCX5cdA3V8yhZA8nDGyyGRum1oHYCH3fTZCuZBbVMdZAbh5hQ8UDSoqXJPwUdRmC7ndl8ZBJjtU7UaxZCe3H3foDCAUAY5yCURPsw5ueCLxyPOuFBxDNmJCqioLKVTo3V7oSbZBJGVrb0IxfqiM7TOrDIcM0vlZBgZDZD';\n\nconst send = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'https://graph.facebook.com/v22.0/1022623927610993/messages',\n  headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },\n  body: { messaging_product: 'whatsapp', to: response.phone, type: 'text', text: { body: response.reply } }\n});\n\nreturn { sent: true, result: send };\n"
+        "method": "POST",
+        "url": "https://graph.facebook.com/v22.0/1022623927610993/messages",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer EAANYyZCf5JkYBRSiZAgl1azk6mhgZCq3qFNZCjIDZCTnSVnJo5E6FtERbBZCld4M6ioW36DKpZCD36VcZBihmkui9DZAE0qhdIjMKVtsLOWfOhcvGWLCncXDzrnXXZA5EsJUygHLZAZBrCLcZC6ZCX5cdA3V8yhZA8nDGyyGRum1oHYCH3fTZCuZBbVMdZAbh5hQ8UDSoqXJPwUdRmC7ndl8ZBJjtU7UaxZCe3H3foDCAUAY5yCURPsw5ueCLxyPOuFBxDNmJCqioLKVTo3V7oSbZBJGVrb0IxfqiM7TOrDIcM0vlZBgZDZD" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"messaging_product\":\"whatsapp\",\"to\":\"={{ $json.phone }}\",\"type\":\"text\",\"text\":{\"body\":\"={{ $json.reply }}\" }}",
+        "options": {}
       },
-      "id": "send-whatsapp",
-      "name": "Responder WhatsApp",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [850, 300]
+      "id": "send-wa", "name": "Enviar WhatsApp", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4, "position": [850, 300]
     }
   ],
   "connections": {
-    "Webhook (recibe msg)": {
-      "main": [[{ "node": "Extraer datos", "type": "main", "index": 0 }]]
-    },
-    "Extraer datos": {
-      "main": [[{ "node": "Llamar Edge Function", "type": "main", "index": 0 }]]
-    },
-    "Llamar Edge Function": {
-      "main": [[{ "node": "Responder WhatsApp", "type": "main", "index": 0 }]]
-    }
+    "Webhook (recibe msg)": { "main": [[{ "node": "Extraer datos", "type": "main", "index": 0 }]] },
+    "Extraer datos": { "main": [[{ "node": "Llamar Edge Function", "type": "main", "index": 0 }]] },
+    "Llamar Edge Function": { "main": [[{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]] }
   },
-  "settings": {
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner"
-  },
-  "staticData": null,
-  "tags": [{ "name": "taller-pro" }],
-  "pinData": {},
-  "versionId": "2.0.0",
-  "active": true,
-  "id": "whatsapp-bot",
-  "description": "WhatsApp Bot - Flujo: Webhook → Extraer → Edge Function (DeepSeek) → Code (envía WhatsApp). v2 simplificada."
+  "settings": { "saveManualExecutions": true, "callerPolicy": "workflowsFromSameOwner" },
+  "staticData": null, "tags": [{ "name": "taller-pro" }], "pinData": {}, "versionId": "3.0.0", "active": true, "id": "whatsapp-bot",
+  "description": "Bot WhatsApp v3: 4 nodos, HTTP Request con specifyBody:json para ambos. Sin Code nodes problemáticos."
 }
