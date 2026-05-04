@@ -78,8 +78,7 @@ Deno.serve(async (req: Request) => {
     if (!body.message && body.body) {
       body.message = typeof body.body === "string" ? body.body : (body.body as Record<string,string>).message || "";
     }
-    let { message, phone, name } = body;
-    phone = phone.replace(/^\+/, "");
+    const { message, phone, name } = body;
 
     if (!message?.trim() || !phone?.trim()) {
       return new Response(
