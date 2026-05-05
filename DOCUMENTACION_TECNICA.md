@@ -33,6 +33,7 @@
 | Componente | URL | Auth |
 |---|---|---|
 | Frontend (prod) | `https://rdbmam.net` | Supabase Auth |
+| Frontend (dev) | `http://localhost:3000` (`npx serve .`) | Supabase Auth |
 | Supabase | `https://glrveolwztjirwatdmyf.supabase.co` | Anon key (ver abajo) |
 | Edge Function `chat-ai` | `...supabase.co/functions/v1/chat-ai` | Bearer token |
 | Edge Function `whatsapp-webhook` | `...supabase.co/functions/v1/whatsapp-webhook` | Bearer token |
@@ -41,6 +42,14 @@
 | Evolution API Manager | `http://localhost:8080/manager/` | apikey: `123456` |
 | n8n | `http://localhost:5678` | n8n account |
 | DeepSeek API | `https://api.deepseek.com/chat/completions` | API key (en secrets) |
+
+### Deploy
+
+| Entorno | URL | Mecanismo |
+|---|---|---|
+| Producción | `https://rdbmam.net` | Cloudflare Pages — auto-deploy en cada `git push` a `master` |
+| Desarrollo | `http://localhost:3000` | `npx serve .` (servidor estático local) |
+| Repo GitHub | `https://github.com/rdbravo2004-bit/taller-pro` | — |
 
 ### Claves Supabase
 
