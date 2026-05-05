@@ -21,7 +21,7 @@
       </div>
 
       <div class="filters-bar">
-        <input type="text" id="filter-search" placeholder="Buscar por nombre o marca..." oninput="loadParts()">
+        <input type="text" id="filter-search" placeholder="Buscar por nombre, marca o n° de parte..." oninput="loadParts()">
       </div>
 
       <div class="card">
@@ -30,8 +30,8 @@
             <thead>
               <tr>
                 <th>Repuesto</th>
+                <th>N° Parte</th>
                 <th>Marca</th>
-                <th>Descripción</th>
                 <th>Stock</th>
                 <th>Precio</th>
                 <th id="th-actions" style="display:none">Acciones</th>
@@ -44,33 +44,53 @@
     </main>
   </div>
 
-  <!-- Modal -->
   <div class="modal-overlay" id="part-modal">
-    <div class="modal">
+    <div class="modal" style="max-width:600px">
       <h3 id="modal-title">Nuevo Repuesto</h3>
       <form id="part-form" onsubmit="savePart(event)">
         <input type="hidden" id="part-id">
         <div class="form-group">
           <label for="part-name">Nombre *</label>
-          <input type="text" id="part-name" required>
+          <input type="text" id="part-name" required placeholder="Ej: Buje de parrilla">
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label for="part-brand">Marca</label>
-            <input type="text" id="part-brand">
+            <label for="part-number">N° de Parte (alfanumérico, máx 30)</label>
+            <input type="text" id="part-number" maxlength="30" placeholder="Ej: FD-4056-BP" style="text-transform:uppercase;font-family:monospace">
           </div>
+          <div class="form-group">
+            <label for="part-brand">Marca del repuesto</label>
+            <input type="text" id="part-brand" placeholder="Ej: SKF / Bosch / Monroe">
+          </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
             <label for="part-stock">Stock *</label>
             <input type="number" id="part-stock" min="0" value="0" required>
+          </div>
+          <div class="form-group">
+            <label for="part-price">Precio ($) *</label>
+            <input type="number" id="part-price" min="0" step="0.01" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="part-year-min">Año desde</label>
+            <input type="number" id="part-year-min" min="1950" max="2030" placeholder="Ej: 2010">
+          </div>
+          <div class="form-group">
+            <label for="part-year-max">Año hasta</label>
+            <input type="number" id="part-year-max" min="1950" max="2030" placeholder="Ej: 2025">
           </div>
         </div>
         <div class="form-group">
           <label for="part-desc">Descripción</label>
           <input type="text" id="part-desc">
         </div>
-        <div class="form-group">
-          <label for="part-price">Precio ($) *</label>
-          <input type="number" id="part-price" min="0" step="0.01" required>
+        <div class="form-group" style="margin-top:1rem">
+          <label>Modelos compatibles</label>
+          <div id="compatible-models" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:.75rem;font-size:.85rem;display:grid;grid-template-columns:1fr 1fr;gap:.3rem">
+          </div>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn" onclick="closeModal('part-modal')">Cancelar</button>
@@ -101,7 +121,7 @@
       let query = db.from('parts').select('*').order('name');
 
       if (search) {
-        query = query.or(`name.ilike.%${search}%,brand.ilike.%${search}%`);
+        query = query.or(`name.ilike.%${search}%,brand.ilike.%${search}%,part_number.ilike.%${search}%`);
       }
 
       const { data, error } = await query;
@@ -113,8 +133,8 @@
       tbody.innerHTML = (data || []).map(p => `
         <tr>
           <td><strong>${escapeHTML(p.name)}</strong></td>
+          <td style="font-family:monospace;font-size:.8rem">${escapeHTML(p.part_number || '—')}</td>
           <td>${escapeHTML(p.brand || '—')}</td>
-          <td>${escapeHTML(p.description || '—')}</td>
           <td style="color:${p.stock <= 0 ? 'var(--danger)' : p.stock < 5 ? 'var(--warning)' : 'var(--success)'}">${p.stock}</td>
           <td>$${parseFloat(p.price).toFixed(2)}</td>
           ${isAdminUser ? `<td>
@@ -125,41 +145,73 @@
       `).join('');
     }
 
-    function openPartModal(part = null) {
+    async function loadCompatibleModels(partId) {
+      const container = document.getElementById('compatible-models');
+      const { data: models } = await db.from('vehicle_models').select('id,brand,model').order('brand').order('model');
+      const { data: links } = partId
+        ? await db.from('part_vehicles').select('model_id').eq('part_id', partId)
+        : { data: [] };
+      const linked = new Set((links || []).map(l => l.model_id));
+
+      container.innerHTML = (models || []).map(m => `
+        <label style="display:flex;align-items:center;gap:.35rem;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" class="model-cb" value="${m.id}" ${linked.has(m.id) ? 'checked' : ''}>
+          ${escapeHTML(m.brand)} ${escapeHTML(m.model)}
+        </label>
+      `).join('') || '<span style="color:var(--text-muted)">No hay modelos cargados</span>';
+    }
+
+    async function openPartModal(part = null) {
       document.getElementById('modal-title').textContent = part ? 'Editar Repuesto' : 'Nuevo Repuesto';
       document.getElementById('part-id').value = part?.id || '';
       document.getElementById('part-name').value = part?.name || '';
+      document.getElementById('part-number').value = part?.part_number || '';
       document.getElementById('part-brand').value = part?.brand || '';
       document.getElementById('part-desc').value = part?.description || '';
       document.getElementById('part-stock').value = part?.stock ?? 0;
       document.getElementById('part-price').value = part?.price ?? 0;
+      document.getElementById('part-year-min').value = part?.year_min ?? '';
+      document.getElementById('part-year-max').value = part?.year_max ?? '';
       document.getElementById('part-modal').classList.add('active');
+      loadCompatibleModels(part?.id || null);
     }
 
-    function closeModal(id) {
-      document.getElementById(id).classList.remove('active');
-    }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
     async function savePart(event) {
       event.preventDefault();
       const id = document.getElementById('part-id').value;
       const payload = {
         name: document.getElementById('part-name').value,
-        brand: document.getElementById('part-brand').value || null,
-        description: document.getElementById('part-desc').value || null,
+        part_number: document.getElementById('part-number').value.toUpperCase().trim() || null,
+        brand: document.getElementById('part-brand').value.trim() || null,
+        description: document.getElementById('part-desc').value.trim() || null,
         stock: parseInt(document.getElementById('part-stock').value),
         price: parseFloat(document.getElementById('part-price').value),
+        year_min: document.getElementById('part-year-min').value ? parseInt(document.getElementById('part-year-min').value) : null,
+        year_max: document.getElementById('part-year-max').value ? parseInt(document.getElementById('part-year-max').value) : null,
       };
       if (id) payload.updated_at = new Date().toISOString();
 
-      let error;
+      let error, partId = id;
       if (id) {
         ({ error } = await db.from('parts').update(payload).eq('id', id));
       } else {
-        ({ error } = await db.from('parts').insert(payload));
+        const { data, error: insertError } = await db.from('parts').insert(payload).select('id').single();
+        if (insertError) error = insertError;
+        else partId = data.id;
       }
 
       if (error) { toast(error.message, 'error'); return; }
+
+      // Sincronizar modelos compatibles
+      await db.from('part_vehicles').delete().eq('part_id', partId);
+      const checked = document.querySelectorAll('.model-cb:checked');
+      if (checked.length > 0) {
+        const inserts = Array.from(checked).map(cb => ({ part_id: partId, model_id: cb.value }));
+        await db.from('part_vehicles').upsert(inserts, { onConflict: 'part_id, model_id' });
+      }
+
       toast(id ? 'Repuesto actualizado' : 'Repuesto creado');
       closeModal('part-modal');
       loadParts();

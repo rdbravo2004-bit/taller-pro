@@ -39,9 +39,8 @@
     </main>
   </div>
 
-  <!-- Modal -->
   <div class="modal-overlay" id="service-modal">
-    <div class="modal">
+    <div class="modal" style="max-width:600px">
       <h3 id="modal-title">Nuevo Servicio</h3>
       <form id="service-form" onsubmit="saveService(event)">
         <input type="hidden" id="service-id">
@@ -61,6 +60,11 @@
           <div class="form-group">
             <label for="service-price">Precio ($) *</label>
             <input type="number" id="service-price" min="0" step="0.01" required>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:1rem">
+          <label>Modelos compatibles</label>
+          <div id="compatible-models" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:.75rem;font-size:.85rem;display:grid;grid-template-columns:1fr 1fr;gap:.3rem">
           </div>
         </div>
         <div class="modal-actions">
@@ -108,7 +112,23 @@
       `).join('');
     }
 
-    function openServiceModal(service = null) {
+    async function loadCompatibleModels(serviceId) {
+      const container = document.getElementById('compatible-models');
+      const { data: models } = await db.from('vehicle_models').select('id,brand,model').order('brand').order('model');
+      const { data: links } = serviceId
+        ? await db.from('service_vehicles').select('model_id').eq('service_id', serviceId)
+        : { data: [] };
+      const linked = new Set((links || []).map(l => l.model_id));
+
+      container.innerHTML = (models || []).map(m => `
+        <label style="display:flex;align-items:center;gap:.35rem;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" class="model-cb" value="${m.id}" ${linked.has(m.id) ? 'checked' : ''}>
+          ${escapeHTML(m.brand)} ${escapeHTML(m.model)}
+        </label>
+      `).join('') || '<span style="color:var(--text-muted)">No hay modelos cargados</span>';
+    }
+
+    async function openServiceModal(service = null) {
       document.getElementById('modal-title').textContent = service ? 'Editar Servicio' : 'Nuevo Servicio';
       document.getElementById('service-id').value = service?.id || '';
       document.getElementById('service-name').value = service?.name || '';
@@ -116,11 +136,10 @@
       document.getElementById('service-minutes').value = service?.estimated_minutes || 60;
       document.getElementById('service-price').value = service?.price || 0;
       document.getElementById('service-modal').classList.add('active');
+      loadCompatibleModels(service?.id || null);
     }
 
-    function closeModal(id) {
-      document.getElementById(id).classList.remove('active');
-    }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
 
     async function saveService(event) {
       event.preventDefault();
@@ -132,14 +151,26 @@
         price: parseFloat(document.getElementById('service-price').value),
       };
 
-      let error;
+      let error, serviceId = id;
+
       if (id) {
         ({ error } = await db.from('services').update(payload).eq('id', id));
       } else {
-        ({ error } = await db.from('services').insert(payload));
+        const { data, error: insertError } = await db.from('services').insert(payload).select('id').single();
+        if (insertError) error = insertError;
+        else serviceId = data.id;
       }
 
       if (error) { toast(error.message, 'error'); return; }
+
+      // Sincronizar modelos compatibles
+      await db.from('service_vehicles').delete().eq('service_id', serviceId);
+      const checked = document.querySelectorAll('.model-cb:checked');
+      if (checked.length > 0) {
+        const inserts = Array.from(checked).map(cb => ({ service_id: serviceId, model_id: cb.value }));
+        await db.from('service_vehicles').upsert(inserts, { onConflict: 'service_id, model_id' });
+      }
+
       toast(id ? 'Servicio actualizado' : 'Servicio creado');
       closeModal('service-modal');
       loadServices();

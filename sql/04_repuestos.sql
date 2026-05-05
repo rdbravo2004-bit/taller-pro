@@ -1,51 +1,17 @@
 -- ============================================================
--- Proyecto Talleres v0 — Repuestos
+-- Proyecto Talleres v0 — Repuestos (actualizado)
 -- Ejecutar en SQL Editor de Supabase
+-- Agrega part_number, year_min, year_max a la tabla parts
 -- ============================================================
 
-CREATE TABLE IF NOT EXISTS public.parts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL,
-  description TEXT,
-  brand TEXT,
-  stock INT NOT NULL DEFAULT 0,
-  price DECIMAL(10,2) NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+ALTER TABLE public.parts ADD COLUMN IF NOT EXISTS part_number TEXT;
+ALTER TABLE public.parts ADD COLUMN IF NOT EXISTS year_min INT;
+ALTER TABLE public.parts ADD COLUMN IF NOT EXISTS year_max INT;
 
-ALTER TABLE public.parts ENABLE ROW LEVEL SECURITY;
+-- Validar part_number: alfanumérico, máx 30 caracteres
+ALTER TABLE public.parts DROP CONSTRAINT IF EXISTS ck_part_number_format;
+ALTER TABLE public.parts ADD CONSTRAINT ck_part_number_format
+  CHECK (part_number IS NULL OR (length(part_number) <= 30 AND part_number ~ '^[A-Za-z0-9\-_\.]+$'));
 
-CREATE POLICY "Autenticados leen repuestos"
-  ON public.parts FOR SELECT
-  USING (auth.uid() IS NOT NULL);
-
-CREATE POLICY "Admin inserta repuestos"
-  ON public.parts FOR INSERT
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'admin'
-    )
-  );
-
-CREATE POLICY "Admin actualiza repuestos"
-  ON public.parts FOR UPDATE
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'admin'
-    )
-  );
-
-CREATE POLICY "Admin elimina repuestos"
-  ON public.parts FOR DELETE
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles p
-      WHERE p.id = auth.uid() AND p.role = 'admin'
-    )
-  );
-
-CREATE INDEX IF NOT EXISTS idx_parts_name ON public.parts(name);
-CREATE INDEX IF NOT EXISTS idx_parts_brand ON public.parts(brand);
+-- Índice para búsqueda por número de parte
+CREATE INDEX IF NOT EXISTS idx_parts_part_number ON public.parts(part_number);

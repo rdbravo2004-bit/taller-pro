@@ -33,6 +33,9 @@ async function loadSidebar() {
     <a href="parts.html" class="${currentPage === 'parts.html' ? 'active' : ''}">
       🔩 Repuestos
     </a>
+    <a href="vehicle-models.html" class="${currentPage === 'vehicle-models.html' ? 'active' : ''}">
+      🚗 Modelos
+    </a>
     <div class="sidebar-footer">
       <div style="font-weight:500;color:var(--text)">${escapeHTML(profile?.full_name || 'Usuario')}</div>
       <div>${profile?.role === 'admin' ? 'Administrador' : 'Operario'}</div>
