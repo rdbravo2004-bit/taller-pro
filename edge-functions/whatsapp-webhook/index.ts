@@ -17,17 +17,21 @@ const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const SYSTEM_PROMPT = `Sos el asistente virtual de Taller Pro, un taller mecánico. Ayudás a clientes por WhatsApp.
+const SYSTEM_PROMPT = `Sos el asistente virtual de Taller Pro, un taller mecánico especializado en tren delantero y suspensión. Ayudás a clientes por WhatsApp.
+
+HOY ES ${new Date().toLocaleDateString('es-AR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
 
 DATOS DEL TALLER:
-Servicios: Cambio de aceite ($45, 30min), Alineación y balanceo ($80, 60min), Diagnóstico computarizado ($50, 45min), Revisión de frenos ($25, 30min), Cambio de neumáticos ($40, 60min), Service completo ($150, 120min), Aire acondicionado ($70, 60min), Reparación eléctrica ($120, 90min).
+Servicios: Diagnóstico computarizado ($50, 45min), Alineación delantera ($40, 30min), Alineación integral 4 ruedas ($65, 45min), Balanceo de neumáticos ($25, 30min), Tren delantero completo ($180, 120min), Cambio de amortiguadores delanteros ($120, 90min), Cambio de amortiguadores traseros ($100, 80min), Cambio de bujes de parrilla ($70, 60min), Revisión de frenos ($30, 30min), Cambio de pastillas de freno ($55, 45min), Service de suspensión ($90, 60min), Reparación de rótulas y extremos ($80, 60min), Cambio de rulemanes ($95, 75min).
 Horario: lunes a viernes 8:00-18:00, sábados 8:00-13:00.
 
 FORMATO DE RESPUESTA:
 Respondé en español, tono amable y profesional, mensajes cortos (máx 3 oraciones).
 
-Cuando el cliente QUIERE CREAR UNA CITA, respondé ÚNICAMENTE con este JSON (sin texto adicional):
-{"action":"create_appointment","data":{"full_name":"nombre del cliente","phone":"teléfono","vehicle_brand":"marca","vehicle_model":"modelo","service":"servicio solicitado","preferred_date":"YYYY-MM-DD","preferred_time":"HH:MM"}}
+Cuando el cliente QUIERE CREAR UNA CITA, respondé ÚNICAMENTE con este JSON (sin texto adicional). Pedile siempre TODOS los datos antes de crear la cita:
+{"action":"create_appointment","data":{"full_name":"nombre del cliente","phone":"teléfono","vehicle_brand":"marca","vehicle_model":"modelo","vehicle_year":"año","license_plate":"patente","service":"servicio solicitado","preferred_date":"YYYY-MM-DD","preferred_time":"HH:MM"}}
+
+IMPORTANTE: Si el cliente ya te dio algunos datos (nombre, teléfono, vehículo) en esta conversación, usalos. Si faltan datos, preguntale específicamente qué falta. No inventes datos. Para la fecha usá el año actual (2026) a menos que el cliente diga otro.
 
 Cuando el cliente QUIERE CONSULTAR DISPONIBILIDAD, respondé ÚNICAMENTE con este JSON:
 {"action":"check_availability","data":{"date":"YYYY-MM-DD"}}
@@ -153,20 +157,41 @@ Deno.serve(async (req: Request) => {
       // ─── Crear cita ───
       const d = action.data;
       const serviceMap: Record<string, string> = {
-        "cambio de aceite": "Cambio de aceite",
-        "cambio aceite": "Cambio de aceite",
-        alineación: "Alineación y balanceo",
-        "alineación y balanceo": "Alineación y balanceo",
         "diagnóstico computarizado": "Diagnóstico computarizado",
         "diagnostico computarizado": "Diagnóstico computarizado",
+        "alineación delantera": "Alineación delantera",
+        "alineacion delantera": "Alineación delantera",
+        "alineación integral": "Alineación integral 4 ruedas",
+        "alineacion integral": "Alineación integral 4 ruedas",
+        "alineación 4 ruedas": "Alineación integral 4 ruedas",
+        "alineacion 4 ruedas": "Alineación integral 4 ruedas",
+        "balanceo": "Balanceo de neumáticos",
+        "balanceo de neumáticos": "Balanceo de neumáticos",
+        "balanceo de neumaticos": "Balanceo de neumáticos",
+        "tren delantero": "Tren delantero completo",
+        "tren delantero completo": "Tren delantero completo",
+        "amortiguadores delanteros": "Cambio de amortiguadores delanteros",
+        "amortiguadores traseros": "Cambio de amortiguadores traseros",
+        "bujes de parrilla": "Cambio de bujes de parrilla",
+        "bujes": "Cambio de bujes de parrilla",
         "revisión de frenos": "Revisión de frenos",
         "revision de frenos": "Revisión de frenos",
-        "cambio de neumáticos": "Cambio de neumáticos",
-        "cambio de neumaticos": "Cambio de neumáticos",
-        "service completo": "Service completo",
-        "aire acondicionado": "Aire acondicionado",
-        "reparación eléctrica": "Reparación eléctrica",
-        "reparacion electrica": "Reparación eléctrica",
+        "pastillas de freno": "Cambio de pastillas de freno",
+        "pastillas": "Cambio de pastillas de freno",
+        "service de suspensión": "Service de suspensión",
+        "service de suspension": "Service de suspensión",
+        "suspensión": "Service de suspensión",
+        "suspension": "Service de suspensión",
+        "rótulas": "Reparación de rótulas y extremos",
+        "rotulas": "Reparación de rótulas y extremos",
+        "rótulas y extremos": "Reparación de rótulas y extremos",
+        "rotulas y extremos": "Reparación de rótulas y extremos",
+        "extremos": "Reparación de rótulas y extremos",
+        "rulemán": "Cambio de rulemanes",
+        "ruleman": "Cambio de rulemanes",
+        "rulemáns": "Cambio de rulemanes",
+        "rulemans": "Cambio de rulemanes",
+        "rulemanes": "Cambio de rulemanes",
       };
 
       const serviceName = d.service?.toLowerCase().trim();
@@ -214,6 +239,8 @@ Deno.serve(async (req: Request) => {
             client_id: clientId,
             brand: d.vehicle_brand,
             model: d.vehicle_model,
+            year: d.vehicle_year ? parseInt(d.vehicle_year) : null,
+            license_plate: d.license_plate || null,
           })
           .select("id")
           .single();
@@ -282,6 +309,13 @@ Deno.serve(async (req: Request) => {
           ? `Para el ${date} hay ${availableSlots.length} horarios disponibles. Los primeros: ${availableSlots.slice(0, 5).join(", ")}. ¿Querés reservar alguno?`
           : `El ${date} está completo. ¿Probamos otro día?`;
 
+      await supabase.from("message_log").insert({
+        direction: "outgoing",
+        channel: "whatsapp",
+        recipient: phone,
+        message: availText,
+      });
+
       return new Response(JSON.stringify({ reply: availText, phone, action: "availability" }), {
         headers: { "Content-Type": "application/json" },
       });
@@ -298,6 +332,12 @@ Deno.serve(async (req: Request) => {
 
       if (!matchingClients?.length) {
         const notFoundMsg = "No encontré citas con ese dato. ¿Me pasás tu nombre completo o teléfono?";
+        await supabase.from("message_log").insert({
+          direction: "outgoing",
+          channel: "whatsapp",
+          recipient: phone,
+          message: notFoundMsg,
+        });
         return new Response(JSON.stringify({ reply: notFoundMsg, phone }), {
           headers: { "Content-Type": "application/json" },
         });

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Taller Pro — Servicios</title>
+  <link rel="stylesheet" href="css/app.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/supabase.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/app.js"></script>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h2>🔧 Servicios</h2>
+        <button class="btn btn-primary" id="btn-new-service" style="display:none" onclick="openServiceModal()">+ Nuevo Servicio</button>
+      </div>
+
+      <div class="card">
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Servicio</th>
+                <th>Descripción</th>
+                <th>Duración</th>
+                <th>Precio</th>
+                <th id="th-actions" style="display:none">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="services-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="service-modal">
+    <div class="modal">
+      <h3 id="modal-title">Nuevo Servicio</h3>
+      <form id="service-form" onsubmit="saveService(event)">
+        <input type="hidden" id="service-id">
+        <div class="form-group">
+          <label for="service-name">Nombre *</label>
+          <input type="text" id="service-name" required>
+        </div>
+        <div class="form-group">
+          <label for="service-desc">Descripción</label>
+          <input type="text" id="service-desc">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="service-minutes">Duración (min) *</label>
+            <input type="number" id="service-minutes" min="5" step="5" required>
+          </div>
+          <div class="form-group">
+            <label for="service-price">Precio ($) *</label>
+            <input type="number" id="service-price" min="0" step="0.01" required>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn" onclick="closeModal('service-modal')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    let isAdminUser = false;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const session = await requireAuth();
+      if (!session) return;
+      isAdminUser = await isAdmin();
+      if (isAdminUser) {
+        document.getElementById('btn-new-service').style.display = '';
+        document.getElementById('th-actions').style.display = '';
+      }
+      loadServices();
+    });
+
+    async function loadServices() {
+      const { data, error } = await db.from('services').select('*').order('name');
+      const tbody = document.getElementById('services-table');
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger)">Error: ${error.message}</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = data.map(s => `
+        <tr>
+          <td><strong>${escapeHTML(s.name)}</strong></td>
+          <td>${escapeHTML(s.description || '—')}</td>
+          <td>${s.estimated_minutes} min</td>
+          <td>$${parseFloat(s.price).toFixed(2)}</td>
+          ${isAdminUser ? `<td>
+            <button class="btn btn-sm" onclick="editService('${s.id}')">✏️</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteService('${s.id}', '${escapeHTML(s.name)}')">🗑</button>
+          </td>` : ''}
+        </tr>
+      `).join('');
+    }
+
+    function openServiceModal(service = null) {
+      document.getElementById('modal-title').textContent = service ? 'Editar Servicio' : 'Nuevo Servicio';
+      document.getElementById('service-id').value = service?.id || '';
+      document.getElementById('service-name').value = service?.name || '';
+      document.getElementById('service-desc').value = service?.description || '';
+      document.getElementById('service-minutes').value = service?.estimated_minutes || 60;
+      document.getElementById('service-price').value = service?.price || 0;
+      document.getElementById('service-modal').classList.add('active');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    async function saveService(event) {
+      event.preventDefault();
+      const id = document.getElementById('service-id').value;
+      const payload = {
+        name: document.getElementById('service-name').value,
+        description: document.getElementById('service-desc').value || null,
+        estimated_minutes: parseInt(document.getElementById('service-minutes').value),
+        price: parseFloat(document.getElementById('service-price').value),
+      };
+
+      let error;
+      if (id) {
+        ({ error } = await db.from('services').update(payload).eq('id', id));
+      } else {
+        ({ error } = await db.from('services').insert(payload));
+      }
+
+      if (error) { toast(error.message, 'error'); return; }
+      toast(id ? 'Servicio actualizado' : 'Servicio creado');
+      closeModal('service-modal');
+      loadServices();
+    }
+
+    function editService(id) {
+      db.from('services').select('*').eq('id', id).single().then(({ data }) => {
+        if (data) openServiceModal(data);
+      });
+    }
+
+    async function deleteService(id, name) {
+      if (!confirm(`¿Eliminar servicio "${name}"?`)) return;
+      const { error } = await db.from('services').delete().eq('id', id);
+      if (error) { toast(error.message, 'error'); return; }
+      toast('Servicio eliminado');
+      loadServices();
+    }
+
+    initScreensaver(['Taller', 'Pro'], 5);
+  </script>
+</body>
+</html>

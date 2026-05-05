@@ -1,18 +1,23 @@
 -- ============================================================
--- Proyecto Talleres v0 — Datos de Prueba
--- Ejecutar después del schema
+-- Proyecto Talleres v0 — Nuevos servicios (tren delantero/trasero)
+-- Ejecutar en SQL Editor de Supabase
 -- ============================================================
 
--- Servicios comunes de taller
-INSERT INTO public.services (name, description, estimated_minutes, price) VALUES
-  ('Cambio de aceite', 'Cambio de aceite y filtro', 30, 45.00),
-  ('Alineación y balanceo', 'Alineación computarizada + balanceo de 4 ruedas', 60, 80.00),
-  ('Diagnóstico computarizado', 'Scanner OBDII con informe completo', 45, 50.00),
-  ('Revisión de frenos', 'Inspección de pastillas, discos y líquido', 30, 25.00),
-  ('Cambio de neumáticos', 'Cambio de 4 neumáticos + válvulas', 60, 40.00),
-  ('Service completo', 'Aceite, filtros, revisión general de 20 puntos', 120, 150.00),
-  ('Aire acondicionado', 'Carga de gas y revisión de circuito', 60, 70.00),
-  ('Reparación eléctrica', 'Diagnóstico y reparación eléctrica', 90, 120.00);
+-- Borrar servicios viejos
+DELETE FROM public.services;
 
--- NOTA: Clientes, vehículos y citas se cargan desde la app.
--- Para pruebas rápidas podés insertar desde el frontend o desde el panel de Supabase.
+-- Insertar nuevos servicios
+INSERT INTO public.services (name, description, estimated_minutes, price) VALUES
+  ('Diagnóstico computarizado', 'Scanner OBDII con informe completo', 45, 50.00),
+  ('Alineación delantera', 'Alineación computarizada del tren delantero', 30, 40.00),
+  ('Alineación integral 4 ruedas', 'Alineación total computarizada', 45, 65.00),
+  ('Balanceo de neumáticos', 'Balanceo de 4 ruedas', 30, 25.00),
+  ('Tren delantero completo', 'Inspección y reparación integral de tren delantero: rótulas, extremos, bujes, parrilla', 120, 180.00),
+  ('Cambio de amortiguadores delanteros', 'Reemplazo de amortiguadores del tren delantero', 90, 120.00),
+  ('Cambio de amortiguadores traseros', 'Reemplazo de amortiguadores traseros', 80, 100.00),
+  ('Cambio de bujes de parrilla', 'Reemplazo de bujes de barra estabilizadora', 60, 70.00),
+  ('Revisión de frenos', 'Inspección de pastillas, discos y líquido de frenos', 30, 30.00),
+  ('Cambio de pastillas de freno', 'Reemplazo de pastillas y control de discos', 45, 55.00),
+  ('Service de suspensión', 'Revisión y diagnóstico completo de sistema de suspensión', 60, 90.00),
+  ('Reparación de rótulas y extremos', 'Cambio de rótulas y extremos de dirección', 60, 80.00),
+  ('Cambio de rulemanes', 'Reemplazo de rulemanes de rueda (por unidad)', 75, 95.00);

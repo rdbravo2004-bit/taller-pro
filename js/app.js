@@ -27,6 +27,12 @@ async function loadSidebar() {
     <a href="clients.html" class="${currentPage === 'clients.html' ? 'active' : ''}">
       👥 Clientes
     </a>
+    <a href="services.html" class="${currentPage === 'services.html' ? 'active' : ''}">
+      🔧 Servicios
+    </a>
+    <a href="parts.html" class="${currentPage === 'parts.html' ? 'active' : ''}">
+      🔩 Repuestos
+    </a>
     <div class="sidebar-footer">
       <div style="font-weight:500;color:var(--text)">${escapeHTML(profile?.full_name || 'Usuario')}</div>
       <div>${profile?.role === 'admin' ? 'Administrador' : 'Operario'}</div>
