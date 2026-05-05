@@ -1,6 +1,9 @@
 // ─── Particle Text Effect ───
 // Uso: initParticles('container-id', ['Palabra1', 'Palabra2'])
 // El canvas se adapta al tamaño del contenedor y es responsive.
+//
+// Uso screensaver: initScreensaver(['Palabra1', 'Palabra2'], 5)
+// Muestra partículas a pantalla completa tras N minutos de inactividad.
 
 function initParticles(containerId, words) {
   const container = document.getElementById(containerId);
@@ -269,4 +272,59 @@ function initParticles(containerId, words) {
   });
 
   init();
+}
+
+// ─── Inactivity Screensaver ───
+// Call once per page: initScreensaver(['Taller', 'Pro'], 5)
+// After N minutes of inactivity, shows full-screen particles.
+// Any keypress dismisses it.
+
+function initScreensaver(words, idleMinutes) {
+  if (!words || !idleMinutes) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'screensaver';
+  overlay.id = 'screensaver-overlay';
+  document.body.appendChild(overlay);
+
+  let idleTimer = null;
+  let isActive = false;
+
+  function startScreensaver() {
+    if (isActive) return;
+    isActive = true;
+    overlay.classList.add('active');
+    initParticles('screensaver-overlay', words);
+  }
+
+  function stopScreensaver() {
+    if (!isActive) return;
+    isActive = false;
+    overlay.classList.remove('active');
+    overlay.innerHTML = '';
+    resetTimer();
+  }
+
+  function resetTimer() {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(startScreensaver, idleMinutes * 60 * 1000);
+  }
+
+  const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'];
+  for (const evt of events) {
+    window.addEventListener(evt, () => {
+      if (!isActive) {
+        resetTimer();
+      }
+    });
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (isActive) {
+      e.preventDefault();
+      stopScreensaver();
+    }
+  });
+
+  resetTimer();
 }

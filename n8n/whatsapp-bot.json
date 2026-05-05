@@ -6,48 +6,16 @@
       "id": "webhook-receive", "name": "Webhook (recibe msg)", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [250, 300]
     },
     {
-      "parameters": { "jsCode": "const body = $input.first().json;\nreturn { message: body.message || '', phone: body.phone || '', name: body.name || 'Cliente' };" },
-      "id": "extract", "name": "Extraer datos", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [450, 300]
-    },
-    {
       "parameters": {
-        "method": "POST",
-        "url": "https://glrveolwztjirwatdmyf.supabase.co/functions/v1/whatsapp-webhook",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscnZlb2x3enRqaXJ3YXRkbXlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjgwNjIsImV4cCI6MjA5MzEwNDA2Mn0.mzliyZzOUTFx0p79VatSSTpID6xkofyUW3vzn8dB4HI" }] },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\"message\":\"={{ $json.message }}\",\"phone\":\"={{ $json.phone }}\",\"name\":\"={{ $json.name }}\" }",
-        "options": {}
+        "jsCode": "const input = $input.first().json;\nconst data = (input.body && input.body.data) || input.data || input;\nconst jid = (data.key && data.key.remoteJid) || '';\nconst phone = jid.includes('@') ? jid.split('@')[0] : jid;\nlet msg = '';\nif (data.message) {\n  msg = data.message.conversation || '';\n  if (!msg && data.message.extendedTextMessage) {\n    msg = data.message.extendedTextMessage.text || '';\n  }\n}\nconst name = data.pushName || 'Cliente';\n\nconst efPayload = { message: msg, phone: phone, name: name };\n\nlet efError = null;\nlet efResult = null;\ntry {\n  efResult = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'https://glrveolwztjirwatdmyf.supabase.co/functions/v1/whatsapp-webhook',\n    headers: { 'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscnZlb2x3enRqaXJ3YXRkbXlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjgwNjIsImV4cCI6MjA5MzEwNDA2Mn0.mzliyZzOUTFx0p79VatSSTpID6xkofyUW3vzn8dB4HI', 'Content-Type': 'application/json' },\n    body: JSON.stringify(efPayload)\n  });\n} catch (e) { efError = e.message; }\n\nif (efError) {\n  return { json: { error: 'EF fallo: ' + efError, payload: efPayload } };\n}\n\nlet waError = null;\nlet waResult = null;\ntry {\n  waResult = await this.helpers.httpRequest({\n    method: 'POST',\n    url: 'http://127.0.0.1:8080/message/sendText/taller',\n    headers: { 'apikey': '123456', 'Content-Type': 'application/json' },\n    body: JSON.stringify({ number: efResult.phone, text: efResult.reply })\n  });\n} catch (e) { waError = e.message; }\n\nif (waError) {\n  return { json: { error: 'WA fallo: ' + waError, efResult: efResult } };\n}\n\nreturn { json: { reply: efResult.reply, phone: efResult.phone, waStatus: waResult.status } };\n"
       },
-      "id": "call-ef", "name": "Llamar Edge Function", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4, "position": [650, 300]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "https://graph.facebook.com/v22.0/1022623927610993/messages",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "Authorization", "value": "Bearer EAANYyZCf5JkYBRXztzI4DPQzZCcA7UDQD7zuYFABVIJYlnJlIcG1G9mLzILBDzMb2NwJLnG0v9bPVkH1dMkrw5FXfIQKOdo0xH1oHDPl1pqEeKRm4hIIMSnLgRyNz2L5HN8jgYTcF4PxTMI8ii6ZAzusq0b2MRwUvt8jQHn5Fe4WVMBdZBypWZAgAJbOKrcWsB2RzVEKfDgDN1jCG4I2Jk3JHI35H5Kc6skpWsRf7i3HTYrLBmR0mNZBxuG8Mjmu4VB8UjZBbc8WSzeYdJ3GShEj2rmnl80P5EZD" }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\"messaging_product\":\"whatsapp\",\"to\":\"={{ $json.phone }}\",\"type\":\"text\",\"text\":{\"body\":\"={{ $json.reply }}\" }}",
-        "options": {}
-      },
-      "id": "send-wa", "name": "Enviar WhatsApp", "type": "n8n-nodes-base.httpRequest", "typeVersion": 4, "position": [850, 300]
+      "id": "process", "name": "Procesar mensaje", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [450, 300]
     }
   ],
   "connections": {
-    "Webhook (recibe msg)": { "main": [[{ "node": "Extraer datos", "type": "main", "index": 0 }]] },
-    "Extraer datos": { "main": [[{ "node": "Llamar Edge Function", "type": "main", "index": 0 }]] },
-    "Llamar Edge Function": { "main": [[{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]] }
+    "Webhook (recibe msg)": { "main": [[{ "node": "Procesar mensaje", "type": "main", "index": 0 }]] }
   },
   "settings": { "saveManualExecutions": true, "callerPolicy": "workflowsFromSameOwner" },
-  "staticData": null, "tags": [{ "name": "taller-pro" }], "pinData": {}, "versionId": "3.0.0", "active": true, "id": "whatsapp-bot",
-  "description": "Bot WhatsApp v3: 4 nodos, HTTP Request con specifyBody:json para ambos. Sin Code nodes problemáticos."
+  "staticData": null, "tags": [{ "name": "taller-pro" }], "pinData": {}, "versionId": "10.0.0", "active": true, "id": "whatsapp-bot",
+  "description": "Bot v10: CORRECCION - la data real esta en input.body.data, no input.data."
 }

@@ -85,44 +85,12 @@
     },
     {
       "parameters": {
-        "url": "https://graph.facebook.com/v19.0/1022623927610993/messages",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer EAANYyZCf5JkYBRXztzI4DPQzZCcA7UDQD7zuYFABVIJYlnJlIcG1G9mLzILBDzMb2NwJLnG0v9bPVkH1dMkrw5FXfIQKOdo0xH1oHDPl1pqEeKRm4hIIMSnLgRyNz2L5HN8jgYTcF4PxTMI8ii6ZAzusq0b2MRwUvt8jQHn5Fe4WVMBdZBypWZAgAJbOKrcWsB2RzVEKfDgDN1jCG4I2Jk3JHI35H5Kc6skpWsRf7i3HTYrLBmR0mNZBxuG8Mjmu4VB8UjZBbc8WSzeYdJ3GShEj2rmnl80P5EZD"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "messaging_product",
-              "value": "whatsapp"
-            },
-            {
-              "name": "to",
-              "value": "={{ $json.phone }}"
-            },
-            {
-              "name": "type",
-              "value": "text"
-            },
-            {
-              "name": "text.body",
-              "value": "={{ $json.message.replace('...', '') }}"
-            }
-          ]
-        },
-        "options": {}
+        "jsCode": "const item = $input.first().json;\n\nconst waResponse = await this.helpers.httpRequest({\n  method: 'POST',\n  url: 'http://127.0.0.1:8080/message/sendText/taller',\n  headers: { 'apikey': '123456', 'Content-Type': 'application/json' },\n  body: JSON.stringify({ number: item.phone, text: (item.message || '').replace('...', '') })\n});\n\nreturn { json: { phone: item.phone, waStatus: waResponse.status } };\n"
       },
       "id": "send-whatsapp",
-      "name": "Enviar WhatsApp",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
+      "name": "Enviar WhatsApp (Evolution)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [1050, 300]
     }
   ],

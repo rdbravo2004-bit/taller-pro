@@ -87,7 +87,35 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // 1. Llamar a DeepSeek
+    // 1. Inicializar cliente Supabase (service_role para bypass RLS)
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // 2. Obtener historial de conversación (últimos 10 mensajes)
+    const { data: history } = await supabase
+      .from("message_log")
+      .select("direction, message")
+      .or(`sender.eq.${phone},recipient.eq.${phone}`)
+      .order("created_at", { ascending: true })
+      .limit(10);
+
+    // 3. Armar mensajes con historial para DeepSeek
+    const messages: Array<{ role: string; content: string }> = [
+      { role: "system", content: SYSTEM_PROMPT },
+    ];
+
+    for (const h of history || []) {
+      messages.push({
+        role: h.direction === "incoming" ? "user" : "assistant",
+        content: h.direction === "incoming" ? `Cliente: ${name || phone}\nTeléfono: ${phone}\nMensaje: ${h.message}` : h.message,
+      });
+    }
+
+    messages.push({
+      role: "user",
+      content: `Cliente: ${name || phone}\nTeléfono: ${phone}\nMensaje: ${message}`,
+    });
+
+    // 4. Llamar a DeepSeek con historial
     const dsResponse = await fetch(DEEPSEEK_URL, {
       method: "POST",
       headers: {
@@ -96,15 +124,9 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         model: "deepseek-chat",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          {
-            role: "user",
-            content: `Cliente: ${name || phone}\nTeléfono: ${phone}\nMensaje: ${message}`,
-          },
-        ],
+        messages,
         temperature: 0.7,
-        max_tokens: 400,
+        max_tokens: 600,
       }),
     });
 
@@ -115,13 +137,10 @@ Deno.serve(async (req: Request) => {
     const dsData: DeepSeekResponse = await dsResponse.json();
     const reply = dsData.choices[0].message.content;
 
-    // 2. Detectar si la respuesta es una acción (JSON)
+    // 5. Detectar si la respuesta es una acción (JSON)
     const action = extractJSON(reply);
 
-    // 3. Inicializar cliente Supabase (service_role para bypass RLS)
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-    // 4. Registrar mensaje entrante
+    // 6. Registrar mensaje entrante
     await supabase.from("message_log").insert({
       direction: "incoming",
       channel: "whatsapp",
