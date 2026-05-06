@@ -1,87 +1,76 @@
-# Estado actual — 05/05/2026
+# Estado actual — 05/05/2026 (fin de jornada)
 
-## Lo que está funcionando (Fases 1-5a)
+## Lo que está funcionando
 
-- Frontend deployado en `https://rdbmam.net` (Cloudflare Pages)
-- Supabase: DB, auth, RLS, seed data, triggers — todo OK
-- Edge Function `chat-ai`: deployada y funcionando (proxy DeepSeek seguro)
-- CRUD clientes, vehículos, citas — completo
-- Dashboard con FullCalendar, stats y chat IA
+### Frontend
+- Deployado en `https://rdbmam.net` (Cloudflare Pages) y `http://localhost:3000` (dev)
+- Login/registro con Supabase Auth, formulario alineado a la derecha
+- Dashboard con FullCalendar, stats (pendientes/confirmadas/completadas) y chat IA
+- CRUD clientes, vehículos — completo
+- CRUD citas con filtros (fecha, cliente, estado)
+- CRUD servicios (admin-only, + vinculación a modelos de vehículo)
+- CRUD repuestos (admin-only, con part_number, stock con colores, vinculación a modelos)
+- CRUD modelos de vehículos (admin-only, 25 modelos seed + auto-create cuando cliente registra vehículo nuevo)
+- Screensaver: efecto partículas tras 5 min de inactividad, cierra con cualquier tecla
+- Configuración centralizada en `js/config.js` (nombre taller, dueño, teléfono, palabras screensaver)
 
-## Phase 5b — WhatsApp (FUNCIONANDO)
+### Supabase (DB + Edge Functions)
 
-### Meta API → Evolution API
-
-La API oficial de Meta fue **descartada**. Motivos:
-- Token expiró el 3/5/2026
-- Número de prueba `+1 555-632-4268` con `code_verification_status: NOT_VERIFIED`
-- Error 131030: "Recipient phone number not in allowed list"
-
-**Reemplazo:** Evolution API v2.3.7 (Baileys 7.0.0-rc.9) corriendo en Docker local.
-
-### Evolution API
-
-| Campo | Valor |
+| Tabla | Estado |
 |---|---|
-| Imagen | `evoapicloud/evolution-api:v2.3.7` |
-| Puerto | `8080` |
-| Instancia | `taller` |
-| API Key | `123456` |
-| Estado WhatsApp | **open** (vinculado multi-dispositivo) |
-| Número vinculado | `5491168592944` |
-| Base de datos | PostgreSQL 15 (Docker `evolution-postgres`) |
-| Manager | `http://localhost:8080/manager/` |
+| `clients`, `vehicles`, `services`, `appointments`, `orders` | Creadas con RLS |
+| `parts` | Con `part_number` (alfanumérico 30 chars), `year_min`, `year_max`, `stock` |
+| `vehicle_models` | 25 modelos seed (Ford, VW, Toyota, etc.) + trigger auto-create |
+| `service_vehicles` | Relación servicio ↔ modelo |
+| `part_vehicles` | Relación repuesto ↔ modelo |
+| `order_parts` | Tracking de repuestos usados (order_id, part_id, quantity) |
+| `notifications` | Cola de notificaciones (whatsapp/email) |
+| `message_log` | Historial de conversaciones WhatsApp |
 
-### Edge Functions
+| Edge Function | Archivo | Estado |
+|---|---|---|
+| `chat-ai` | `edge-functions/chat-ai/index.ts` | Proxy DeepSeek seguro, CORS, valida sesión |
+| `whatsapp-webhook` | `edge-functions/whatsapp-webhook/index.ts` | Procesa mensajes WhatsApp: historial (10 msg), DeepSeek, crea/consulta citas, registra en message_log, **fix reciente: check_appointment busca por teléfono del contexto** |
+| `daily-reminders` | `edge-functions/daily-reminders/index.ts` | Busca citas de mañana, genera notificaciones de recordatorio |
 
-| Función | Archivo | Deployada | Estado |
-|---|---|---|---|
-| `chat-ai` | `edge-functions/chat-ai/index.ts` | Sí | Funcionando |
-| `whatsapp-webhook` | `edge-functions/whatsapp-webhook/index.ts` | Sí | **v2 con historial de conversación** — consulta últimos 10 mensajes del `message_log` antes de llamar a DeepSeek |
-| `daily-reminders` | `edge-functions/daily-reminders/index.ts` | ? | Escrita, no verificada |
+### WhatsApp + n8n
 
-### n8n — WhatsApp Bot
-
-| Campo | Valor |
+| Componente | Estado |
 |---|---|
-| Workflow | `n8n/whatsapp-bot.json` v10.0.0 |
-| Nodos | 2 (webhook + code "Procesar mensaje") |
-| Estado | **Activo y funcionando** |
-| Webhook URL | `http://localhost:5678/webhook/whatsapp-webhook` |
+| **Evolution API** | Docker local, `evoapicloud/evolution-api:v2.3.7`, puerto `8080`, WhatsApp vinculado (`open`), número `5491168592944` |
+| **n8n** | Local `http://localhost:5678`, 3 workflows activos |
+| **WhatsApp Bot** | v10 (2 nodos), historial de conversación, responde con DeepSeek |
+| **Recordatorios Diarios** | Schedule 18:00 → Edge Function → Evolution API send |
+| **Confirmación de Citas** | Schedule cada 5 min → fetch pending → Evolution API send → mark sent |
 
 **Flujo completo validado:**
 ```
-WhatsApp → Evolution API → n8n webhook → Code node (extrae datos + llama EF + envía respuesta) → Edge Function (DeepSeek con historial) → Evolution API → WhatsApp respuesta
+WhatsApp → Evolution API → n8n webhook → Edge Function (DeepSeek + historial) → Evolution API → WhatsApp respuesta
 ```
 
-### n8n Workflows pendientes de migrar
+## DB relationships
 
-| Workflow | Archivo | Estado |
-|---|---|---|
-| WhatsApp Bot | `whatsapp-bot.json` | Migrado a Evolution API |
-| Daily Reminders | `daily-reminders.json` | Usa Meta API (`graph.facebook.com`). Hay que migrar a Evolution API |
-| Appointment Confirmation | `appointment-confirmation.json` | Usa Meta API. Tiene placeholder `TU_SERVICE_ROLE_KEY_DE_SUPABASE` |
-
-### Datos de Supabase
-
-- URL: `https://glrveolwztjirwatdmyf.supabase.co`
-- Anon key: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdscnZlb2x3enRqaXJ3YXRkbXlmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjgwNjIsImV4cCI6MjA5MzEwNDA2Mn0.mzliyZzOUTFx0p79VatSSTpID6xkofyUW3vzn8dB4HI`
-- Service role key: **PENDIENTE** (necesaria para dos workflows de n8n)
-
-### Lección crítica n8n
-
-Ante cualquier error en n8n, **siempre ver primero la estructura de datos** que llega al nodo:
-```javascript
-return { json: { rawBody: JSON.stringify($input.first().json) } };
 ```
-El webhook de n8n envuelve el POST en `{ headers, params, query, body: {...}, webhookUrl, executionMode }`. Los datos reales están en `$input.first().json.body.data`, no en `$input.first().json.data`.
+services ── service_vehicles ── vehicle_models
+parts    ── part_vehicles    ── vehicle_models
+orders   ── order_parts      ── parts (quantity tracking)
+```
 
-### Documentación completa
-Ver `DOCUMENTACION_TECNICA.md` para detalle de la arquitectura, comandos Docker, debugging n8n, y lecciones aprendidas.
+## Manuales
 
-## Próximos pasos
+| Archivo | Contenido |
+|---|---|
+| `MANUAL_PUESTA_EN_MARCHA.md` | Setup local paso a paso, backup, recuperación ante desastre, script de reconstrucción total, acceso a prod vs dev, troubleshooting |
+| `MANUAL_USUARIO.md` | Guía para el dueño del taller: cómo usar cada pantalla, WhatsApp bot, roles |
+| `MANUAL_DEPLOY_CLIENTE.md` | Deploy en nuevo dominio: Supabase, Cloudflare, VPS, DNS, script bash automatizado, check list de valores, informe de costos/riesgos |
+| `MANUAL_ESCALABILIDAD.md` | Fase 1 (HTML) → Fase 2 (multi-tenant) → Fase 3 (React/TS SaaS), comparativa stacks, costos, cuándo migrar |
+| `DOCUMENTACION_TECNICA.md` | Arquitectura completa, comandos Docker/n8n/Supabase, debugging n8n, lecciones aprendidas |
 
-1. **Service role key** — obtenerla del Dashboard de Supabase
-2. **Migrar daily-reminders.json** y **appointment-confirmation.json** de Meta → Evolution API
-3. **Número separado** para el taller (producción)
-4. **Deploy de daily-reminders** en Supabase
+## Pendientes para mañana
+
+| Tarea | Prioridad |
+|---|---|
+| **Desplegar EF `whatsapp-webhook` actualizada** (fix `check_appointment` con phone del contexto) | Alta |
+| Probar a fondo la aplicación (manual, WhatsApp bot, citas, recordatorios) | Alta |
+| Migrar Evolution API → Meta WhatsApp Cloud API (eliminar riesgo de baneo) | Media — diferido |
+| Número de WhatsApp separado para el taller | Media — diferido |

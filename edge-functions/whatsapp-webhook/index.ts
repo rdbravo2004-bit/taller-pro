@@ -324,13 +324,26 @@ Deno.serve(async (req: Request) => {
     if (action?.action === "check_appointment") {
       // ─── Consultar cita del cliente ───
       const query = action.data.query;
-      const { data: matchingClients } = await supabase
+      // Buscar por query de DeepSeek O por el teléfono del contexto de la conversación
+      let clientQuery = supabase
         .from("clients")
         .select("id")
         .or(`full_name.ilike.%${query}%,phone.ilike.%${query}%`)
         .limit(3);
+      // Si no encuentra por el query, buscar por el phone del mensaje actual
+      const { data: matchingClients } = await clientQuery;
+      let effectiveClients = matchingClients;
 
-      if (!matchingClients?.length) {
+      if ((!effectiveClients || effectiveClients.length === 0) && phone) {
+        const { data: byPhone } = await supabase
+          .from("clients")
+          .select("id")
+          .eq("phone", phone)
+          .limit(1);
+        effectiveClients = byPhone;
+      }
+
+      if (!effectiveClients?.length) {
         const notFoundMsg = "No encontré citas con ese dato. ¿Me pasás tu nombre completo o teléfono?";
         await supabase.from("message_log").insert({
           direction: "outgoing",
@@ -343,7 +356,7 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      const clientIds = matchingClients.map((c) => c.id);
+      const clientIds = effectiveClients.map((c) => c.id);
       const { data: appointments } = await supabase
         .from("appointments")
         .select("date, time, status, services(name), vehicles(brand, model)")
