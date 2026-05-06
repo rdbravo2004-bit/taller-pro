@@ -295,6 +295,17 @@ function initScreensaver(words, idleMinutes) {
     isActive = true;
     overlay.classList.add('active');
     initParticles('screensaver-overlay', words);
+
+    // Agregar datos del dueño
+    if (typeof TALLER_CONFIG !== 'undefined' && TALLER_CONFIG.owner) {
+      const info = document.createElement('div');
+      info.className = 'screensaver-info';
+      info.innerHTML = `
+        <span class="screensaver-owner">${TALLER_CONFIG.owner.name}</span>
+        <span class="screensaver-phone">${TALLER_CONFIG.owner.phone}</span>
+      `;
+      overlay.appendChild(info);
+    }
   }
 
   function stopScreensaver() {

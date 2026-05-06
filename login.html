@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="css/app.css">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script src="js/supabase.js"></script>
+  <script src="js/config.js"></script>
   <script src="js/particles.js"></script>
 </head>
 <body>
@@ -32,6 +33,10 @@
         <p style="font-size:.8rem; color:var(--text-muted)">
           ¿No tenés cuenta? <a href="register.html" style="color:var(--primary)">Registrate acá</a>
         </p>
+        <div style="margin-top:1.5rem; padding-top:1rem; border-top:1px solid var(--border); font-size:.8rem; color:var(--text-muted)">
+          <div style="font-weight:500;color:var(--text)">Roberto Bravo</div>
+          <div>5491168592944</div>
+        </div>
       </div>
 
       <div id="login-message" style="margin-top:1rem; font-size:.85rem;"></div>
@@ -80,9 +85,9 @@
     })();
 
     // Iniciar partículas de fondo
-    initParticles('auth-particles', ['Taller', 'Pro']);
-    // Screensaver: partículas tras 5 min de inactividad
-    initScreensaver(['Taller', 'Pro'], 5);
+    initParticles('auth-particles', TALLER_CONFIG.name);
+    // Screensaver: partículas tras N min de inactividad
+    initScreensaver(TALLER_CONFIG.name, TALLER_CONFIG.screensaverMinutes);
   </script>
 </body>
 </html>
